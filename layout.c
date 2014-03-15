@@ -52,6 +52,7 @@ void expand_window() {
                     current->w = m->sw;
                     current->h = m->sh;
                     current->bw = 0;
+                    break;
                 }
             }
         }
