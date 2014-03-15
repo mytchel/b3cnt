@@ -14,4 +14,3 @@ static int remove_window_from_current(Window w);
 
 static client* client_from_window(Window w);
 static void update_client(client *c);
-static void actually_update_client(client *c);

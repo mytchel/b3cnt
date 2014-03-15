@@ -64,33 +64,26 @@ void add_window(Window w) {
 
     current = c;
 
-    actually_update_client(c);
+    update_client(c);
     grabbuttons(c);
 }
 
 void remove_window(Window w) {
-    monitor *m, *ms;
     desktop *d, *ds;
-    
-    save_monitor();
-    ms = current_monitor; 
-    for (m = head_monitor; m; m = m->next) {
-        select_monitor(m);
-        ds = current_desktop;
-        for (d = m->head_desktop; d; d = d->next) {
-            select_desktop(d);
+   
+    save_desktop(current_desktop);
+    ds = current_desktop;
+    for (d = head_desktop; d; d = d->next) {
+        select_desktop(d);
 
-            if (remove_window_from_current(w)) {
-                layout();
-                update_current();
-            }
-           
-            save_desktop(d);
+        if (remove_window_from_current(w)) {
+            layout();
+            update_current();
         }
-        select_desktop(ds);
-        save_monitor();
+           
+        save_desktop(d);
     }
-    select_monitor(ms);
+    select_desktop(ds);
 }
 
 int remove_window_from_current(Window w) {
@@ -136,15 +129,6 @@ client* client_from_window(Window w) {
 }
 
 void update_client(client *c) {
-    if (mode != FLOATING) // I don't care what size you are if you arn't cool enough to do what the master wants.
-        return;
-
-    actually_update_client(c);
-}
-
-
-
-void actually_update_client(client *c) {
     XWindowAttributes wa;
 
     if (!XGetWindowAttributes(dis, c->win, &wa))

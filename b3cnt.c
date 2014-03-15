@@ -32,9 +32,6 @@
 
 #define LEN(X)    (sizeof(X)/sizeof(*X))
 
-#define MONOCLE 0
-#define FLOATING 1 
-
 #define MOVE 0
 #define RESIZE 1
 #define MINWSZ 20
@@ -82,18 +79,13 @@ struct desktop {
 
     desktop *prev;
     desktop *next;
-
-    int mode;
 };
 
 struct monitor {
     int sw;
     int sh;
-    int x;
-    int y;
-
-    desktop *head_desktop;
-    desktop *current_desktop;
+    int sx;
+    int sy;
 
     monitor *prev;
     monitor *next;
@@ -134,19 +126,14 @@ static int bs;
 static int desktop_num;
 
 // Current monitor and desktop config.
-static int sh;
-static int sw;
-static int sx;
-static int sy;
+static int sw, sh;
 static client *head;
 static client *current;
-static int mode;
 
 static desktop *head_desktop;
 static desktop *current_desktop;
 
-static monitor *head_monitor;
-static monitor *current_monitor;
+static monitor *monitors;
 
 // Events array
 static void (*events[LASTEvent])(XEvent *e) = {
@@ -176,7 +163,6 @@ void setup() {
     bool_quit = 0;
     head = NULL;
     current = NULL;
-    mode = FLOATING;
 
     // Settings
     win_focus = getcolor(FOCUS);
@@ -189,10 +175,10 @@ void setup() {
     screen = DefaultScreen(dis);
     root = RootWindow(dis,screen);
 
-    head_monitor = NULL;
+    monitors = NULL;
 
     update_monitors();
-    select_monitor(head_monitor);
+    init_desktops();
 
     XSelectInput(dis, root, SubstructureRedirectMask|SubstructureNotifyMask);
     grabkeys();

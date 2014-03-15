@@ -5,13 +5,11 @@
  */
 
 void save_desktop(desktop *d) {
-    d->mode = mode;
     d->head = head;
     d->current = current;
 }
 
 void select_desktop(desktop *d) {
-    mode = d->mode;
     head = d->head;
     current = d->current;
     current_desktop = d;
@@ -27,7 +25,7 @@ void change_desktop(const struct Arg arg) {
 
     for(c = head; c; c = c->next) {
         update_client(c);
-        XMoveResizeWindow(dis, c->win, sx + sw, sy + sh, 1, 1);
+        XMoveResizeWindow(dis, c->win, sw, sh, 1, 1);
     }
     
     // Take "properties" from the new desktop
@@ -54,7 +52,7 @@ void client_to_desktop(const struct Arg arg) {
 
     select_desktop(tmp2);
 
-    update_current();
+    change_desktop(arg);
 }
 
 // If you ask for a desktop with a index greater than what I have I will return the
@@ -67,7 +65,7 @@ desktop* desktop_from_index(int i) {
     return d;
 }
 
-void init_desktops(monitor *mon) {
+void init_desktops() {
     int i;
     desktop *d, *n;
 
@@ -79,13 +77,12 @@ void init_desktops(monitor *mon) {
         n->head = NULL;
         n->prev = d;
         n->next = NULL;
-        n->mode = FLOATING;
 
         if (d) {
             d->next = n;
         } else {
-            mon->current_desktop = n;
-            mon->head_desktop = n;
+            current_desktop = n;
+            head_desktop = n;
         }
 
         d = n; 

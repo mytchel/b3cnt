@@ -31,6 +31,7 @@ void update_current() {
 }
 
 void expand_window() {
+    monitor *m;
     if (!current)
         return;
 
@@ -42,11 +43,18 @@ void expand_window() {
         current->bw = 1;
     } else {
         update_client(current);
-        current->x = sx;
-        current->y = sy;
-        current->w = sw;
-        current->h = sh;
-        current->bw = 0;
+
+        for (m = monitors; m; m = m->next) {
+            if (current->x >= m->sx && current->y >= m->sy) {
+                if (current->x <= m->sx + m->sw && current->y <= m->sy + m->sh) {
+                    current->x = m->sx;
+                    current->y = m->sy;
+                    current->w = m->sw;
+                    current->h = m->sh;
+                    current->bw = 0;
+                }
+            }
+        }
     }
 
     layout();
