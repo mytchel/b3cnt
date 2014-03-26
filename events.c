@@ -49,6 +49,7 @@ void maprequest(XEvent *e) {
  *
  */
 void unmapnotify(XEvent *e) {
+    return;
     XUnmapEvent *ev = &e->xunmap;
     
     if (!ev->send_event)
@@ -89,15 +90,7 @@ void configurerequest(XEvent *e) {
 }
 
 void keypress(XEvent *e) {
-    int i;
-    XKeyEvent ke = e->xkey;
-    KeySym keysym = XLookupKeysym(&ke, 0);
-
-    for (i = 0; keys[i].function != NULL; i++) {
-        if (keys[i].keysym == keysym && keys[i].mod == ke.state) {
-            keys[i].function(keys[i].arg);
-        }
-    }
+    key_pressed(e->xkey, keys);
 }
 
 void buttonpress(XEvent *e) {

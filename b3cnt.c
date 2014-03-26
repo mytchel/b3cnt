@@ -30,7 +30,7 @@
 #include <X11/XF86keysym.h>
 #include <X11/extensions/Xinerama.h>
 
-#define LEN(X)    (sizeof(X)/sizeof(*X))
+#define LEN(X)            (sizeof(X)/sizeof(*X))
 
 #define MOVE 0
 #define RESIZE 1

@@ -25,11 +25,16 @@ void change_desktop(const struct Arg arg) {
 
     for(c = head; c; c = c->next) {
         update_client(c);
-        XMoveResizeWindow(dis, c->win, sw, sh, 1, 1);
+    //    XMoveResizeWindow(dis, c->win, sw, sh, 1, 1);
+        XUnmapWindow(dis, c->win);
     }
     
     // Take "properties" from the new desktop
     select_desktop(desktop_from_index(arg.i));
+ 
+    for(c = head; c; c = c->next) {
+        XMapWindow(dis, c->win);
+    }
 
     layout();
     update_current();

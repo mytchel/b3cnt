@@ -37,81 +37,85 @@ int keyismod(KeySym keysym) {
             keysym == XK_Meta_L || 
             keysym == XK_Meta_R || 
             keysym == XK_Alt_L || 
-            keysym == XK_Alt_R
+            keysym == XK_Alt_R 
        )
         return 1;
     return 0;
 }
 
 void submap(struct Arg arg) {
-    int i;
-    XEvent e;
-    XKeyEvent ke;
-    KeySym keysym;
-
-    if (!grabkeyboard())
-        return;
-
-    for (i = 0; i < 1000; i++) {
-        XNextEvent(dis, &e);
-        if (e.type == KeyPress) {
-            ke = e.xkey;
-            keysym = XLookupKeysym(&ke, 0);
-
-            if (keysym == XK_Escape)
-                break;
-
-            if (!keyismod(keysym))
-                goto gotkey;
-        }
-    }
-
-    goto end;
-
-gotkey:
-
-    for (i = 0; arg.map[i].function != NULL; i++) {
-        if(arg.map[i].keysym == keysym && arg.map[i].mod == ke.state) {
-            arg.map[i].function(arg.map[i].arg);
-            goto end;
-        }
-    }
-
-end:
-    releasekeyboard();
-}
-
-void stickysubmap(struct Arg arg) {
-    int i;
-    XEvent e;
-    XKeyEvent ke;
+    XEvent ev;
     KeySym keysym;
 
     if (!grabkeyboard())
         return;
 
     while (1) {
-        XNextEvent(dis, &e);
+        XNextEvent(dis, &ev);
+        if (ev.type != KeyPress) {
+            if (ev.type == ConfigureRequest || ev.type == MapRequest)
+                events[ev.type](&ev);
 
-        if (e.type == KeyPress) {
-            ke = e.xkey;
-            keysym = XLookupKeysym(&ke, 0);
-
-            if (keyismod(keysym))
-                continue;
-
-            if (keysym == XK_Escape)
-                break;
-
-            for (i = 0; arg.map[i].function != NULL; i++) {
-                if(arg.map[i].keysym == keysym && arg.map[i].mod == ke.state) {
-                    arg.map[i].function(arg.map[i].arg);
-                }
-            }
+            continue;
         }
+        
+        keysym = XLookupKeysym(&(ev.xkey), 0);
+
+        if (keysym == XK_Escape)
+            break;
+
+        if (keyismod(keysym))
+            continue;
+
+        key_pressed(ev.xkey, arg.map);
+        break;
     }
 
     releasekeyboard();
+}
+
+void stickysubmap(struct Arg arg) {
+    XEvent ev;
+    KeySym keysym;
+
+    if (!grabkeyboard())
+        return;
+    
+    while (1) {
+        XNextEvent(dis, &ev);
+        if (ev.type != KeyPress) {
+            if (ev.type == ConfigureRequest || ev.type == MapRequest)
+                events[ev.type](&ev);
+
+            continue;
+        }
+        
+        keysym = XLookupKeysym(&(ev.xkey), 0);
+
+        if (keysym == XK_Escape)
+            break;
+
+        if (keyismod(keysym))
+            continue;
+
+        key_pressed(ev.xkey, arg.map);
+    }
+
+    releasekeyboard();
+}
+
+int key_pressed(XKeyEvent ke, key *map) {
+    int i;
+    KeySym keysym = XLookupKeysym(&ke, 0);
+    
+    for (i = 0; map[i].function != NULL; i++) {
+        if (map[i].keysym == keysym && map[i].mod == ke.state) {
+            map[i].function(map[i].arg);
+            return 1;
+        }
+    } 
+
+    return 0;
 }
 
 void grabbuttons(client *c) {

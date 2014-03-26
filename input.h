@@ -8,9 +8,13 @@ static void grabkeys();
 static int grabkeyboard();
 static void releasekeyboard();
 static int keyismod(KeySym keysym);
+static int key_pressed(XKeyEvent ke, key *map);
 
 static void submap(struct Arg arg);
 static void stickysubmap(struct Arg arg);
 
 static void grabbuttons(client *c);
 static void mousemotion(struct Arg arg);
+
+static void updatenumlockmask();
+
