@@ -61,3 +61,53 @@ void expand_window() {
     layout();
     update_current();
 }
+
+void prev_monitor() {
+    monitor *m, *next;
+    if (!current || current->bw != 0)
+        return;
+
+    update_client(current);
+
+    for (m = monitors; m; m = m->next) {
+        if (m->next) next = m->next;
+        else next = monitors;
+        if (current->x == next->sx && current->y == next->sy) {
+            fprintf(stderr, "found mon\n");
+            current->x = m->sx;
+            current->y = m->sy;
+            current->w = m->sw;
+            current->h = m->sh;
+            current->bw = 0;
+            break;
+        }
+    }
+
+    layout();
+    update_current();
+}
+
+void next_monitor() {
+    monitor *m, *next;
+    if (!current || current->bw != 0)
+        return;
+
+    update_client(current);
+
+    for (m = monitors; m; m = m->next) {
+        if (m->next) next = m->next;
+        else next = monitors;
+        if (current->x == m->sx && current->y == m->sy) {
+            fprintf(stderr, "found mon\n");
+            current->x = next->sx;
+            current->y = next->sy;
+            current->w = next->sw;
+            current->h = next->sh;
+            current->bw = 0;
+            break;
+        }
+    }
+
+    layout();
+    update_current();
+}

@@ -13,3 +13,6 @@ static void floating();
 static void update_current();
 
 static void expand_window();
+
+static void prev_monitor();
+static void next_monitor();

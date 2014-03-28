@@ -29,7 +29,7 @@ There are no modes anymore. There is just floating and a fullscreeen toggle that
 Installation
 ------------
 
-You will need Xlib and <https://github.com/mytch444/showmessage> (Or disable messages),
+You will need Xlib,
 then:
 
     $ vim config.h # And change to your liking.

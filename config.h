@@ -70,6 +70,9 @@ static struct key rootmap[] = {
 
     { 0,               XK_space,  expand_window,  {NULL}},
 
+    { 0,               XK_comma,  prev_monitor,   {NULL}},
+    { 0,               XK_period, next_monitor,   {NULL}},
+
     { MOD,             XK_q,      quit,            {NULL}},
 
     END
