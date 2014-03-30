@@ -50,8 +50,6 @@ void add_window(Window w) {
     c->next = NULL;
     c->win = w;
 
-    c->bw = 1;
-
     if(head == NULL) {
         c->prev = NULL;
         head = c;
@@ -65,6 +63,11 @@ void add_window(Window w) {
     current = c;
 
     update_client(c);
+    if (c->x == 0 && c->y == 0 && c->w == sw && c->h == sh)
+        c->bw = 0;
+    else
+        c->bw = 1;
+
     grabbuttons(c);
 }
 
