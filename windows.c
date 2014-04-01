@@ -67,7 +67,8 @@ void add_window(Window w) {
         c->bw = 0;
     else
         c->bw = 1;
-
+    
+    update_client(c); // Needs to be done a second time or it crashes.
     grabbuttons(c);
 }
 
