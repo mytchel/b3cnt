@@ -73,6 +73,7 @@ struct button {
 struct client {
     client *next, *prev;
     int x, y, w, h;
+    int full_width, full_height;
     Window win;
 };
 
@@ -119,6 +120,8 @@ static void sendkillsignal(Window w);
 static void sigchld(int unused);
 
 static client *copyclient(client *o);
+static monitor *clientinmonitor(client *c);
+static int wintoclient(Window w, client **c, desktop **d);
 
 static void layout(desktop *d);
 static void focus(client *c, desktop *d);
@@ -131,8 +134,6 @@ static void removewindow(Window w);
 static void updateclient(client *c);
 
 static void mousemotion(int t);
-
-static int wintoclient(Window w, client **c, desktop **d);
 
 static void grabkeys();
 static void keypressed(XKeyEvent ke, key *map);
@@ -383,6 +384,7 @@ client *copyclient(client *o) {
     c = malloc(sizeof(client));
     c->win = o->win; c->next = o->next; c->prev = o->prev;
     c->x = o->x; c->y = o->y; c->w = o->w; c->h = o->h;
+    c->full_width = o->full_width; c->full_height = o->full_height;
     return c; 
 }
 
@@ -412,13 +414,58 @@ void focus(client *c, desktop *d) {
 }
 
 void layout(desktop *d) {
-    client *t;
+    client *t; monitor *m;
     for (t = d->head; t; t = t->next) {
         XSetWindowBorderWidth(dis, t->win, BORDER_WIDTH);
         XSetWindowBorder(dis, t->win, t == d->current ? win_focus : win_unfocus);
-        XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
         XRaiseWindow(dis, t->win);
+
+        if (t->full_width || t->full_height) {
+            m = clientinmonitor(t);
+            if (!m) {
+                fprintf(stderr, "could not find monitor\n");
+                continue;
+            }
+            if (t->full_width && t->full_height)
+                XMoveResizeWindow(dis, t->win, m->x, m->y, m->w - BORDER_WIDTH * 2, m->h - BORDER_WIDTH * 2);
+            else if (t->full_width)
+                XMoveResizeWindow(dis, t->win, m->x, t->y, m->w - BORDER_WIDTH * 2, t->h);
+            else if (t->full_height)
+                XMoveResizeWindow(dis, t->win, t->x, m->y, t->w, m->h - BORDER_WIDTH * 2);
+        } else
+            XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
     }
+}
+
+monitor *clientinmonitor(client *c) {
+    monitor *m;
+    if (!c) return NULL;
+    for (m = monitors; m; m = m->next) 
+        if (m->x <= c->x && m->x + m->w >= c->x
+                && m->y <= c->y && m->y + m->h >= c->y)
+            return m;
+    return NULL;
+}
+
+void fullwidth(struct Arg arg) {
+    client *c;
+    c = desktops->current;
+    if (!c) return;
+    c->full_width = !c->full_width;
+    layout(desktops);
+}
+
+void fullheight(struct Arg arg) {
+    client *c;
+    c = desktops->current;
+    if (!c) return;
+    c->full_height = !c->full_height;
+    layout(desktops);
+}
+
+void fullscreen(struct Arg arg) {
+    fullwidth(arg);
+    fullheight(arg);
 }
 
 void updateclient(client *c) {
@@ -484,6 +531,8 @@ void shiftwindow(struct Arg arg) {
 
 void addwindow(Window w, desktop *d) {
     int i, mi, modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask };
+    Window win_away; // Don't care about this.
+    int rx, ry, dont_care, v;
     client *c;
 
     if(!(c = malloc(sizeof(client))))
@@ -497,7 +546,14 @@ void addwindow(Window w, desktop *d) {
                     False, ButtonPressMask|ButtonReleaseMask, GrabModeAsync, GrabModeAsync, None, None);
 
     c->win = w;
+    c->full_width = c->full_height = 0;
     updateclient(c);
+   
+    if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry, &dont_care, &dont_care, &v)) {
+        c->x = rx - c->w / 2;
+        c->y = ry - c->h / 2;
+    }
+
     addclient(c, d);
 }
 

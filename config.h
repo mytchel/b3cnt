@@ -53,9 +53,9 @@ static struct key rootmap[] = {
   { 0,                  XK_h,      changedesktop,  {.i = -1}}, 
   { ShiftMask,          XK_h,      clienttodesktop,{.i = -1}}, 
   
-  //{ 0,                  XK_m,      fullwidth,      {NULL}},
-  //{ 0,                  XK_t,      fullheight,     {NULL}},
-  //{ 0,                  XK_y,      fullscreen,     {NULL}},
+  { 0,                  XK_equal,  fullwidth,      {NULL}},
+  { ShiftMask,          XK_equal,  fullheight,     {NULL}},
+  { 0,                  XK_f,      fullscreen,     {NULL}},
 
   { 0,                  XK_b,      spawn,          {.com = batterycmd}},
   { 0,                  XK_t,      spawn,          {.com = timecmd}},
@@ -68,6 +68,7 @@ static struct key keys[] = {
   { Mod1Mask|ShiftMask,     XK_backslash,   updatemonitors, {.i = 0}},
 
   { Mod1Mask|ControlMask,   XK_Return,      spawn,          {.com = termcmd}}, 
+  { Mod1Mask|ShiftMask,     XK_slash ,      spawn,          {.com = menucmd}}, 
   
   
   { Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,            {NULL}},
