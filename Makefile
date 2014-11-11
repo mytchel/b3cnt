@@ -1,7 +1,7 @@
 CFLAGS+= -Wall
 LDADD+= -lX11 -lXinerama
 EXEC=b3cnt-floating
-FILES=b3cnt.c config.h desktops.c events.c god.c input.c layout.c monitors.c windows.c
+FILES=b3cnt.c config.h
 BINDIR?= /usr/bin
 
 CC=gcc

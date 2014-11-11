@@ -1,5 +1,6 @@
 /*
  *  Copyright (c) 2010, Rinaldini Julien, julien.rinaldini@heig-vd.ch
+ *  Copyright (c) 2014, Mytchel Hammond, mytchel at openmailbox dot org
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a
  *  copy of this software and associated documentation files (the "Software"),
@@ -21,87 +22,63 @@
  *
  */
 
-#ifndef CONFIG_H
-#define CONFIG_H
-
-// Mod (Mod1 == alt) and master size
-#define MOD             Mod1Mask
-#define BORDER_SPACE    0
+// Number of steps to be taken for the animation when changing desktops.
+#define ANIMATION_STEPS 1000
 // The number of desktops.
-#define DESKTOP_NUM     5 
-// Set to 0 to disable (messages or follow_mouse).
-#define MESSAGES        0
-/*
- * It should be warned that enabling follow_mouse causes some crashes when closing some
- * windows (chromium, haven't noticed it with anything else. I'm working on it but other 
- * than that it works fine.
- *
- * It seems to be caused by xsetinputfocus in update_current but I can't get any further.
- */
-#define FOLLOW_MOUSE    0
+#define DESKTOP_NUM     7
+#define BORDER_WIDTH    2
+#define FOCUS           "#aaaaaa"
+#define UNFOCUS         "#666666"
 
-#define MASTER_SIZE     0.5
+char* menucmd[]     = {"selectexec", NULL};
+char* termcmd[]     = {"st", "-e", "tmux", NULL};
+char* batterycmd[]  = {"showbattery", NULL};
+char* timecmd[]     = {"showtime", NULL};
 
-// Colors
-#define FOCUS           "rgb:aa/50/e0"
-#define UNFOCUS         "rgb:33/33/33"
-
-char* dmenucmd[]  = {"dmenu_run", NULL};
-char* termcmd[]   = {"st", NULL};
-char* webcmd[]    = {"chromium", NULL};
-char* timecmd[]   = {"showtime", NULL};
-
-// Avoid multiple paste
-#define DESKTOPCHANGE(K,N) { MOD,  K,  change_desktop, {.i = N}}, { MOD|ShiftMask,  K,    client_to_desktop, {.i = N}}
-
-#define END {0,0,NULL,{.i = 0}}
-#define ENDB {0, 0, NULL, {.i = 0}}
+// You will need this at the end of key arrays.
+#define END {0,0,NULL,{NULL}}
 
 static struct key rootmap[] = {
-    { 0,               XK_k,      kill_client,     {NULL}},
+  { 0,                  XK_x,      killclient,     {NULL}},
+  
+  { ShiftMask,          XK_o,      shiftfocus,     {.i = -1}},
+  { 0,                  XK_o,      shiftfocus,     {.i = 1}},
+  { 0,                  XK_i,      focusprev,      {NULL}},
+  
+  { 0,                  XK_n,      shiftwindow,    {.i = 1}},
+  { 0,                  XK_p,      shiftwindow,    {.i = -1}},
 
-    { 0,               XK_o,      next_win,        {NULL}},
-    { ShiftMask,       XK_o,      prev_win,        {NULL}},
+  { 0,                  XK_l,      changedesktop,  {.i = 1}}, 
+  { ShiftMask,          XK_l,      clienttodesktop,{.i = 1}}, 
+  { 0,                  XK_h,      changedesktop,  {.i = -1}}, 
+  { ShiftMask,          XK_h,      clienttodesktop,{.i = -1}}, 
+  
+  //{ 0,                  XK_m,      fullwidth,      {NULL}},
+  //{ 0,                  XK_t,      fullheight,     {NULL}},
+  //{ 0,                  XK_y,      fullscreen,     {NULL}},
 
-    { 0,               XK_c,      spawn,           {.com = termcmd}},
-    { 0,               XK_f,      spawn,           {.com = webcmd}},
-    { 0,               XK_a,      spawn,           {.com = timecmd}},
-    { ShiftMask,       XK_1,      spawn,           {.com = dmenucmd}},
-
-    { 0,               XK_space,  expand_window,  {NULL}},
-
-    { 0,               XK_comma,  prev_monitor,   {NULL}},
-    { 0,               XK_period, next_monitor,   {NULL}},
-
-    { MOD,             XK_q,      quit,            {NULL}},
-
-    END
+  { 0,                  XK_b,      spawn,          {.com = batterycmd}},
+  { 0,                  XK_t,      spawn,          {.com = timecmd}},
+  
+  END
 };
 
-// Shortcuts
 static struct key keys[] = {
-    { MOD,           XK_p,        submap,  {.map = rootmap}},
+  { Mod1Mask,               XK_p,           submap,         {.map = rootmap}},
+  { Mod1Mask|ShiftMask,     XK_backslash,   updatemonitors, {.i = 0}},
 
-    DESKTOPCHANGE(   XK_1,        0),
-    DESKTOPCHANGE(   XK_2,        1),
-    DESKTOPCHANGE(   XK_3,        2),
-    DESKTOPCHANGE(   XK_4,        3),
-    DESKTOPCHANGE(   XK_5,        4),
-    /*DESKTOPCHANGE(   XK_6,        5),
-    DESKTOPCHANGE(   XK_7,        6),
-    DESKTOPCHANGE(   XK_8,        7),
-    DESKTOPCHANGE(   XK_9,        8),
-    DESKTOPCHANGE(   XK_0,        9),
-*/
-    END
+  { Mod1Mask|ControlMask,   XK_Return,      spawn,          {.com = termcmd}}, 
+  
+  
+  { Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,            {NULL}},
+
+  END
 };
 
 static struct button buttons[] = {
-    { MOD,               Button1,   mousemotion,  {.i = MOVE}},
-    { MOD|ShiftMask,     Button1,   mousemotion,  {.i = RESIZE}},
-
-    ENDB
+  { Mod1Mask,           Button1,    mousemove,      {NULL}},
+  { Mod1Mask,           Button2,    mouseresize,    {NULL}},
+  { Mod1Mask,           Button3,    mouseresize,    {NULL}},
 };
 
-#endif
 

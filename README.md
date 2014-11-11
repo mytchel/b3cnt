@@ -1,47 +1,24 @@
-b3cnt
-=====
+b3cnt-floating
+==============
 
-b3cnt is a very simple and lightweight tiling window manager. It started as a fork of 
-catwm <https://github.com/pyknite/catwm> and currently allows for space between windows
-(like bspwm) and strings of key combinations (C-b o) like emacs with more planned for adding.
+b3cnt-floating is a very simple and lightweight stacking window manager. It is a fork of
+[b3cnt](https://github.com/mytch444/b3cnt) and will have most of the functions that that
+has but will be more like cwm that I have recently come to both love and hate.
 
-Status
-------
- * 23.02.14 -> No longer uses a config file. I thought that 500 lines of code just for that
-    was a bit excessive. I may have another go at it some other time.
- * 09.02.14 -> Now uses a config file, badly.
- * 06.02.14 -> Found a new name!!!
- * 29.01.14 -> Removed floating as I have yet to actually use it.
- * 11.01.14 -> Added Xinerama support, floating windows and some other things.
- * 07.01.14 -> Added key strings and border space.
-
-from catwm
- * 05.07.19 -> v0.3. Multiple desktops and correct some bugs // is it ment to be 19?
- * 30.06.10 -> v0.2. Back again \o/
- * 15.03.10 -> v0.2. The wm is functional -> I only use this wm!
- * 24.02.10 -> First release, v0.1. In this release 0.1, the wm is almost functional
-
-Modes
------
-
-There are no modes anymore. There is just floating and a fullscreeen toggle that works for the individual window.
+It has has desktops that are ordered in a ring. Basically imagine them being frame on a wheel
+that steps around when you change left or right, it even has an accompanining animation to make
+it look like that is exactly what is happening.
 
 Installation
 ------------
 
-You will need Xlib,
-then:
-
-    $ vim config.h # And change to your liking.
+    $ emacs config.h # And change to your liking.
     $ make
     $ make install
 
+If you have some particular request, just send me an e-mail, and I will possibly do something
+about it.
+    
 Bugs
 ----
- * Probebly the same as <https://github.com/mytch444/b3cnt>, possibly with some other annoying things.
-
-Todo
-----
- * Add a way of focusing windows so that an out of focus window can be infront of the current one.
- 
-If you have some particular request, just send me an e-mail, and I will see for it!
+ * Probably many. If you find one email me at mytchel at openmailbox dot org and tell me what it is.
