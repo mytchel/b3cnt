@@ -320,7 +320,10 @@ void updatemonitors() {
 
 void changedesktop(const struct Arg arg) {
     client *c; desktop *n; monitor *m;
-    int direction, offset, total_width;
+    int direction, total_width, x, offset;
+    XImage *nimage, *oimage;
+    Window owin, nwin;
+    GC ogc, ngc;
 
     fprintf(stderr, "changing desktop\n");
 
@@ -337,42 +340,42 @@ void changedesktop(const struct Arg arg) {
     for (c = desktops->head; c; c = c->next) 
         updateclient(c);
 
-    fprintf(stderr, "mapping new\n");
     for (c = n->head; c; c = c->next) 
         XMapWindow(dis, c->win);
 
     XChangeWindowAttributes(dis, root, CWEventMask, 
-            &(XSetWindowAttributes){.do_not_propagate_mask = SubstructureNotifyMask});
+            &(XSetWindowAttributes)
+            {.do_not_propagate_mask = SubstructureNotifyMask});
 
-    fprintf(stderr, "animating\n");
+
     total_width = 0;
-    for (m = monitors; m; m = m->next)
-        total_width += m->w;
-
-    // Do an animation showing the windows moving off the screen either to the left or right.
-    for (offset = 0; offset < total_width; offset += total_width / ANIMATION_STEPS) {
-       for (c = n->head; c; c = c->next)
-            XMoveWindow(dis, c->win, c->x + -direction * total_width + direction * offset, c->y);
-
-       for (c = desktops->head; c; c = c->next)
-           XMoveWindow(dis, c->win, c->x + direction * offset, c->y);
+    for (m = monitors; m; m = m->next) 
+        if (m->x + m->w > total_width)
+            total_width = m->x + m->w;
+    
+    for (offset = 0; offset < total_width; 
+            offset += total_width / ANIMATION_STEPS) {
+        for (c = n->head; c; c = c->next)
+            XMoveWindow(dis, c->win, 
+                    c->x + direction * total_width + direction * offset,
+                    c->y);
+        for (c = desktops->head; c; c = c->next)
+            XMoveWindow(dis, c->win, 
+                    c->x + direction * offset,
+                    c->y);
     }
 
-    fprintf(stderr, "unmapping\n");
     for (c = desktops->head; c; c = c->next) 
         XUnmapWindow(dis, c->win);
-
+    
+    // Now ok to listen to events.
     XChangeWindowAttributes(dis, root, CWEventMask, 
             &(XSetWindowAttributes){.event_mask = ROOTMASK});
 
     desktops = n;
 
-    fprintf(stderr, "changed desktop\n");
-
     layout(n);
     focus(n->current, n);
-
-    fprintf(stderr, "layout and focussed!\n");
 }
 
 void clienttodesktop(const struct Arg arg) {
@@ -425,10 +428,8 @@ void focus(client *c, desktop *d) {
 }
 
 void layout(desktop *d) {
-    fprintf(stderr, "laying out\n");
     client *t; monitor *m;
     for (t = d->head; t; t = t->next) {
-        fprintf(stderr, "layout out window\n");
         XSetWindowBorderWidth(dis, t->win, BORDER_WIDTH);
         XSetWindowBorder(dis, t->win, t == d->current ? win_focus : win_unfocus);
         XRaiseWindow(dis, t->win);
@@ -445,8 +446,6 @@ void layout(desktop *d) {
         } else
             XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
     }
-
-    fprintf(stderr, "finished layout\n");
 }
 
 monitor *clientinmonitor(client *c) {
@@ -717,6 +716,7 @@ void mousemotion(int t) {
                 GrabModeAsync, None, None, CurrentTime) != GrabSuccess) return;
 
     focus(c, desktops);
+    c->full_width = c->full_height = 0;
 
     do {
         XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask|SubstructureRedirectMask, &ev);
