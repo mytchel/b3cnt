@@ -220,8 +220,8 @@ void setup() {
         desktops->head = desktops->current = desktops->old = NULL;
     }
 
-    head->prev = desktops;
     desktops->next = head;
+    head->prev = desktops;
 
     XSync(dis, False);
 }
@@ -322,6 +322,8 @@ void changedesktop(const struct Arg arg) {
     client *c; desktop *n; monitor *m;
     int direction, offset, total_width;
 
+    fprintf(stderr, "changing desktop\n");
+
     if (arg.i > 0) {
         n = desktops->next;
         direction = -1;
@@ -335,12 +337,14 @@ void changedesktop(const struct Arg arg) {
     for (c = desktops->head; c; c = c->next) 
         updateclient(c);
 
+    fprintf(stderr, "mapping new\n");
     for (c = n->head; c; c = c->next) 
         XMapWindow(dis, c->win);
 
     XChangeWindowAttributes(dis, root, CWEventMask, 
             &(XSetWindowAttributes){.do_not_propagate_mask = SubstructureNotifyMask});
 
+    fprintf(stderr, "animating\n");
     total_width = 0;
     for (m = monitors; m; m = m->next)
         total_width += m->w;
@@ -354,6 +358,7 @@ void changedesktop(const struct Arg arg) {
            XMoveWindow(dis, c->win, c->x + direction * offset, c->y);
     }
 
+    fprintf(stderr, "unmapping\n");
     for (c = desktops->head; c; c = c->next) 
         XUnmapWindow(dis, c->win);
 
@@ -362,8 +367,12 @@ void changedesktop(const struct Arg arg) {
 
     desktops = n;
 
+    fprintf(stderr, "changed desktop\n");
+
     layout(n);
     focus(n->current, n);
+
+    fprintf(stderr, "layout and focussed!\n");
 }
 
 void clienttodesktop(const struct Arg arg) {
@@ -392,13 +401,15 @@ void focus(client *c, desktop *d) {
     client *t;
     int i;
 
-    i = 0;
+    // Sometimes goes infinit loop for some reason?
+    /*i = 0;
     while (d != desktops) {
+        fprintf(stderr, "searching for desktop\n");
         struct Arg arg = {.i = 1};
         changedesktop(arg);
-        if (i++ > DESKTOP_NUM) // Could not find desktop?
+        if (i++ >= DESKTOP_NUM) // Could not find desktop?
             break;
-    }
+    }*/
 
     if (d->current != c) {
         if (d->current)
@@ -407,25 +418,24 @@ void focus(client *c, desktop *d) {
         d->current = c;
     }
 
-    if (d->current)
+    if (d->current) {
         XSetWindowBorder(dis, d->current->win, win_focus);
- 
-    XSync(dis, False);
+        XSetInputFocus(dis, d->current->win, RevertToPointerRoot, CurrentTime);
+    }
 }
 
 void layout(desktop *d) {
+    fprintf(stderr, "laying out\n");
     client *t; monitor *m;
     for (t = d->head; t; t = t->next) {
+        fprintf(stderr, "layout out window\n");
         XSetWindowBorderWidth(dis, t->win, BORDER_WIDTH);
         XSetWindowBorder(dis, t->win, t == d->current ? win_focus : win_unfocus);
         XRaiseWindow(dis, t->win);
 
         if (t->full_width || t->full_height) {
             m = clientinmonitor(t);
-            if (!m) {
-                fprintf(stderr, "could not find monitor\n");
-                continue;
-            }
+            if (!m) continue;
             if (t->full_width && t->full_height)
                 XMoveResizeWindow(dis, t->win, m->x, m->y, m->w - BORDER_WIDTH * 2, m->h - BORDER_WIDTH * 2);
             else if (t->full_width)
@@ -435,6 +445,8 @@ void layout(desktop *d) {
         } else
             XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
     }
+
+    fprintf(stderr, "finished layout\n");
 }
 
 monitor *clientinmonitor(client *c) {
@@ -584,18 +596,19 @@ void removeclient(client *c, desktop *d) {
     if (d->head == c)
         d->head = c->next;
 
-    if (c->prev)
-        c->prev->next = c->next;
-    if (c->next)
-        c->next->prev = c->prev;
-    
     if (d->current == c) {
         if (c->next)
             d->current = c->next;
         else
             d->current = c->prev;
+        d->old = d->current;
     }
 
+    if (c->prev)
+        c->prev->next = c->next;
+    if (c->next)
+        c->next->prev = c->prev;
+    
     free(c);
 }
 
@@ -720,18 +733,21 @@ void mousemotion(int t) {
 }
 
 void maprequest(XEvent *e) {
+    fprintf(stderr, "mapping window\n");
     XMapRequestEvent *ev = &e->xmaprequest;
     client *c; desktop *d;
 
     XMapWindow(dis, ev->window);
 
-    if (!(wintoclient(ev->window, &c, &d)))
+    if (!(wintoclient(ev->window, &c, &d))) 
         addwindow(ev->window, desktops);
 }
 
 void removewindow(Window w) {
+    fprintf(stderr, "removing window\n");
     client *c; desktop *d;
     if (wintoclient(w, &c, &d)) {
+        fprintf(stderr, "yes\n");
         removeclient(c, d);
         layout(d);
         focus(d->current, d);
@@ -788,8 +804,7 @@ int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
         focus(desktops->current, desktops);
         return 0;
     }
-    //err(EXIT_FAILURE, "XError: request: %d code %d", ee->request_code, ee->error_code);
-    fprintf(stderr, "XERROR %d code %d\n", ee->request_code, ee->error_code);
+    err(EXIT_FAILURE, "XError: request: %d code %d", ee->request_code, ee->error_code);
 }
 
 void killclient() {
