@@ -1,5 +1,6 @@
 /*
  *  Copyright (c) 2010, Rinaldini Julien, julien.rinaldini@heig-vd.ch
+ *  Copyright (c) 2014, Mytchel Hammond, mytchel at openmailbox dot org
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a
  *  copy of this software and associated documentation files (the "Software"),
@@ -36,7 +37,8 @@
 
 #define LEN(X)    (sizeof(X)/sizeof(*X))
 #define CLEANMASK(mask) (mask & ~(numlockmask | LockMask))
-#define ROOTMASK   SubstructureRedirectMask|ButtonPressMask|SubstructureNotifyMask|PropertyChangeMask
+#define ROOTMASK   SubstructureRedirectMask|ButtonPressMask| \
+                   SubstructureNotifyMask|PropertyChangeMask
 
 #define MINWSZ 20
 
@@ -185,28 +187,15 @@ void setup() {
 
     XModifierKeymap *modmap = XGetModifierMapping(dis);
     for (k = 0; k < 8; k++) for (j = 0; j < modmap->max_keypermod; j++)
-        if (modmap->modifiermap[modmap->max_keypermod*k + j] == XKeysymToKeycode(dis, XK_Num_Lock))
+        if (modmap->modifiermap[modmap->max_keypermod*k + j] 
+                == XKeysymToKeycode(dis, XK_Num_Lock))
             numlockmask = (1 << k);
     XFreeModifiermap(modmap);
-
-    // I have no idea what these are for, but monsterwm has them and it doesn't crash so I'll try 'em.
-    wmatoms[WM_PROTOCOLS]     = XInternAtom(dis, "WM_PROTOCOLS", False);
-    wmatoms[WM_DELETE_WINDOW] = XInternAtom(dis, "WM_DELETE_WINDOW", False);
-    netatoms[NET_SUPPORTED]  = XInternAtom(dis, "_NET_SUPPORTED", False);
-    netatoms[NET_WM_STATE]    = XInternAtom(dis, "_NET_WM_STATE", False);
-    netatoms[NET_ACTIVE]      = XInternAtom(dis, "_NET_ACTIVE_WINDOW", False);
-    netatoms[NET_FULLSCREEN]  = XInternAtom(dis, "_NET_WM_STATE_FULLSCREEN", False);
-
-    XChangeProperty(dis, root, netatoms[NET_SUPPORTED], XA_ATOM, 32,
-            PropModeReplace, (unsigned char *)netatoms, NET_COUNT);
 
     XSelectInput(dis, root, ROOTMASK);
     XSync(dis, False);
     XSetErrorHandler(xerror);
     XSync(dis, False);
-
-    updatemonitors();
-    grabkeys();
 
     desktops = malloc(sizeof(desktop));
     desktop *head = desktops;
@@ -223,12 +212,16 @@ void setup() {
     desktops->next = head;
     head->prev = desktops;
 
+    updatemonitors();
+    grabkeys();
+
     XSync(dis, False);
 }
 
 unsigned long getcolor(const char *color, const int screen) {
     XColor c; Colormap map = DefaultColormap(dis, screen);
-    if (!XAllocNamedColor(dis, map, color, &c, &c)) die("Cannot allocate color.");
+    if (!XAllocNamedColor(dis, map, color, &c, &c))
+        die("Cannot allocate color.");
     return c.pixel;
 }
 
@@ -258,7 +251,8 @@ void sigchld(int unused) {
 }
 
 void quit() {
-    fprintf(stdout,"b3cnt: FINALLY. They've left, now I can have some piece and quiet.\n");
+    fprintf(stdout,"b3cnt: FINALLY. They've left,"
+            "now I can have some piece and quiet.\n");
     bool_quit = 1;
 }
 
@@ -266,6 +260,10 @@ void updatemonitors() {
     XineramaScreenInfo *info = NULL;
     int i, j, monitor_count = 0, count = 0;
     monitor *m, *new, *first;
+    desktop *d;
+    client *c;
+
+    fprintf(stderr, "updating monitors\n");
 
     if (XineramaIsActive(dis)) {
         for (first = monitors; first && first->prev; first = first->prev);
@@ -295,14 +293,26 @@ void updatemonitors() {
             for (monitors = m; monitors->prev; monitors = monitors->prev);
             first = monitors;
         } else if (count < monitor_count) {
+            fprintf(stderr, "removing montiors\n");
             if (count < 1)
                 die("A monitor could help");
 
             monitors = first;
 
-            for (m = monitors, i = 0; m && i < count; m = m->next, i++);
-            if (i == count)
-                m->prev->next = NULL;
+            // Just move all clients to first monitor for now.
+            // Later on may make it only move from monitors that are no longer
+            // there.
+            for (m = monitors->next, i = 1; m; m = m->next, i++) {
+                if (i >= count)
+                    m->prev->next = NULL;
+
+                for (c = desktops->head; c; c = c->next) {
+                    if (clientinmonitor(c) == m) {
+                        c->x = monitors->x;
+                        c->y = monitors->y;
+                    }
+                }
+            }
         }
 
         for (m = first, i = 0; m; m = m->next, i++) {
@@ -314,25 +324,27 @@ void updatemonitors() {
 
         monitors = first;
 
+        focus(desktops->current, desktops);
+
         XFree(info);
     }
 }
 
 void changedesktop(const struct Arg arg) {
-    client *c; desktop *n; monitor *m;
+    client *c; desktop *n;
+    /*
+    // Variables for animation.
     int direction, total_width, x, offset;
     XImage *nimage, *oimage;
     Window owin, nwin;
     GC ogc, ngc;
-
-    fprintf(stderr, "changing desktop\n");
+    monitor *m;
+    */
 
     if (arg.i > 0) {
         n = desktops->next;
-        direction = -1;
     } else if (arg.i < 0) {
         n = desktops->prev;
-        direction = 1;
     } else
         return;
 
@@ -347,6 +359,13 @@ void changedesktop(const struct Arg arg) {
             &(XSetWindowAttributes)
             {.do_not_propagate_mask = SubstructureNotifyMask});
 
+    /*
+    // Animation.
+  
+    if (arg.i > 0)
+        direction = -1;
+    else 
+        direction = 1;
 
     total_width = 0;
     for (m = monitors; m; m = m->next) 
@@ -364,6 +383,7 @@ void changedesktop(const struct Arg arg) {
                     c->x + direction * offset,
                     c->y);
     }
+    */
 
     for (c = desktops->head; c; c = c->next) 
         XUnmapWindow(dis, c->win);
@@ -404,16 +424,6 @@ void focus(client *c, desktop *d) {
     client *t;
     int i;
 
-    // Sometimes goes infinit loop for some reason?
-    /*i = 0;
-    while (d != desktops) {
-        fprintf(stderr, "searching for desktop\n");
-        struct Arg arg = {.i = 1};
-        changedesktop(arg);
-        if (i++ >= DESKTOP_NUM) // Could not find desktop?
-            break;
-    }*/
-
     if (d->current != c) {
         if (d->current)
             XSetWindowBorder(dis, d->current->win, win_unfocus);
@@ -431,18 +441,22 @@ void layout(desktop *d) {
     client *t; monitor *m;
     for (t = d->head; t; t = t->next) {
         XSetWindowBorderWidth(dis, t->win, BORDER_WIDTH);
-        XSetWindowBorder(dis, t->win, t == d->current ? win_focus : win_unfocus);
+        XSetWindowBorder(dis, t->win, 
+                t == d->current ? win_focus : win_unfocus);
         XRaiseWindow(dis, t->win);
 
         if (t->full_width || t->full_height) {
             m = clientinmonitor(t);
             if (!m) continue;
             if (t->full_width && t->full_height)
-                XMoveResizeWindow(dis, t->win, m->x, m->y, m->w - BORDER_WIDTH * 2, m->h - BORDER_WIDTH * 2);
+                XMoveResizeWindow(dis, t->win, m->x, m->y, 
+                        m->w - BORDER_WIDTH * 2, m->h - BORDER_WIDTH * 2);
             else if (t->full_width)
-                XMoveResizeWindow(dis, t->win, m->x, t->y, m->w - BORDER_WIDTH * 2, t->h);
+                XMoveResizeWindow(dis, t->win, m->x, t->y, 
+                        m->w - BORDER_WIDTH * 2, t->h);
             else if (t->full_height)
-                XMoveResizeWindow(dis, t->win, t->x, m->y, t->w, m->h - BORDER_WIDTH * 2);
+                XMoveResizeWindow(dis, t->win, t->x, m->y, 
+                        t->w, m->h - BORDER_WIDTH * 2);
         } else
             XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
     }
@@ -455,7 +469,7 @@ monitor *clientinmonitor(client *c) {
         if (m->x <= c->x && m->x + m->w >= c->x
                 && m->y <= c->y && m->y + m->h >= c->y)
             return m;
-    return NULL;
+    return monitors; // It was probably too far to the left to be in the first.
 }
 
 void fullwidth(struct Arg arg) {
@@ -554,13 +568,15 @@ void addwindow(Window w, desktop *d) {
     for (mi = 0; mi < LEN(modifiers); mi++) 
         for (i = 0; i < LEN(buttons); i++)
             XGrabButton(dis, buttons[i].button, buttons[i].mask|modifiers[mi], w,
-                    False, ButtonPressMask|ButtonReleaseMask, GrabModeAsync, GrabModeAsync, None, None);
+                    False, ButtonPressMask|ButtonReleaseMask, GrabModeAsync,
+                    GrabModeAsync, None, None);
 
     c->win = w;
     c->full_width = c->full_height = 0;
     updateclient(c);
    
-    if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry, &dont_care, &dont_care, &v)) {
+    if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry, &dont_care,
+                &dont_care, &v)) {
         c->x = rx - c->w / 2;
         c->y = ry - c->h / 2;
     }
@@ -577,11 +593,9 @@ void addclient(client *n, desktop *d) {
         n->next = NULL;
         n->prev = NULL;
     } else {
-        c = d->current;
+        for (c = d->head; c->next; c = c->next);
         n->prev = c;
-        n->next = c->next;
-        if (c->next)
-            c->next->prev = n;
+        n->next = NULL;
         c->next = n;
     }
 
@@ -633,7 +647,8 @@ void grabkeys() {
     for (i = 0, m = 0; keys[i].function != NULL; i++, m = 0) {
         if (!(code = XKeysymToKeycode(dis, keys[i].keysym))) continue;
         while (m < LEN(modifiers)) {
-            XGrabKey(dis, code, keys[i].mod | modifiers[m++], root, True, GrabModeAsync, GrabModeAsync);
+            XGrabKey(dis, code, keys[i].mod | modifiers[m++], root, True,
+                    GrabModeAsync, GrabModeAsync);
         }
     }
 }
@@ -642,7 +657,8 @@ void keypressed(XKeyEvent ke, key *map) {
     int i;
     KeySym keysym = XLookupKeysym(&ke, 0);
     for (i = 0; map[i].function; i++) {
-        if (map[i].keysym == keysym && CLEANMASK(map[i].mod) == CLEANMASK(ke.state)) {
+        if (map[i].keysym == keysym 
+                && CLEANMASK(map[i].mod) == CLEANMASK(ke.state)) {
             map[i].function(map[i].arg);
         }
     }
@@ -650,7 +666,8 @@ void keypressed(XKeyEvent ke, key *map) {
 
 int iskeymod(KeySym keysym) {
     int i;
-    KeySym mods[] = {XK_Shift_L, XK_Shift_R, XK_Control_L, XK_Control_R, XK_Meta_L, XK_Meta_R, XK_Alt_L, XK_Alt_R};
+    KeySym mods[] = {XK_Shift_L, XK_Shift_R, XK_Control_L, XK_Control_R,
+        XK_Meta_L, XK_Meta_R, XK_Alt_L, XK_Alt_R};
     for (i = 0; i < LEN(mods); i++)
         if (mods[i] == keysym) return 1;
     return 0;
@@ -660,7 +677,8 @@ void listensubmap(key *map, int sticky) {
     XEvent ev;
     KeySym keysym;
 
-    if (!XGrabKeyboard(dis, root, True, GrabModeAsync, GrabModeAsync, CurrentTime) == GrabSuccess) return;
+    if (!XGrabKeyboard(dis, root, True, GrabModeAsync, GrabModeAsync,
+                CurrentTime) == GrabSuccess) return;
 
     while (1) {
         XNextEvent(dis, &ev);
@@ -709,23 +727,29 @@ void mousemotion(int t) {
 
     if (!c || !XGetWindowAttributes(dis, c->win, &wa)) return;
 
-    if (t == RESIZE) XWarpPointer(dis, c->win, c->win, 0, 0, 0, 0, --wa.width, --wa.height);
-    if (!XQueryPointer(dis, root, &w, &w, &rx, &ry, &d, &d, &v) || w != c->win) return;
+    if (t == RESIZE) 
+        XWarpPointer(dis, c->win, c->win, 0, 0, 0, 0, --wa.width, --wa.height);
+    if (!XQueryPointer(dis, root, &w, &w, &rx, &ry, &d, &d, &v) 
+            || w != c->win) return;
 
-    if (XGrabPointer(dis, root, False, ButtonPressMask|ButtonReleaseMask|PointerMotionMask, GrabModeAsync,
-                GrabModeAsync, None, None, CurrentTime) != GrabSuccess) return;
+    if (XGrabPointer(dis, root, False, ButtonPressMask|ButtonReleaseMask
+                |PointerMotionMask, GrabModeAsync, GrabModeAsync, None, None,
+                CurrentTime) != GrabSuccess) return;
 
     focus(c, desktops);
     c->full_width = c->full_height = 0;
 
     do {
-        XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask|SubstructureRedirectMask, &ev);
+        XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask
+                |SubstructureRedirectMask, &ev);
         if (ev.type == MotionNotify) {
             xw = (t == MOVE ? wa.x:wa.width) + ev.xmotion.x - rx;
             yh = (t == MOVE ? wa.y:wa.height) + ev.xmotion.y - ry;
-            if (t == RESIZE) XResizeWindow(dis, c->win, xw > 0 ? xw : 5, yh > 0 ? yh : 5);
+            if (t == RESIZE) 
+                XResizeWindow(dis, c->win, xw > 0 ? xw : 5, yh > 0 ? yh : 5);
             else if (t == MOVE) XMoveWindow(dis, c->win, xw, yh);
-        } else if (ev.type == ConfigureRequest || ev.type == MapRequest) events[ev.type](&ev);
+        } else if (ev.type == ConfigureRequest || ev.type == MapRequest)
+            events[ev.type](&ev);
     } while (ev.type != ButtonRelease);
 
     XUngrabPointer(dis, CurrentTime);
@@ -771,8 +795,10 @@ void enternotify(XEvent *e) {
 void configurerequest(XEvent *e) {
     return;
     XConfigureRequestEvent *ev = &e->xconfigurerequest;
-    XWindowChanges wc = { ev->x, ev->y, ev->width, ev->height, ev->border_width, ev->above, ev->detail };
-    if (XConfigureWindow(dis, ev->window, ev->value_mask, &wc)) XSync(dis, False);
+    XWindowChanges wc = { ev->x, ev->y, ev->width, ev->height, 
+        ev->border_width, ev->above, ev->detail };
+    if (XConfigureWindow(dis, ev->window, ev->value_mask, &wc)) 
+        XSync(dis, False);
     client *c; desktop *d;
     if (wintoclient(ev->window, &c, &d))
         focus(c, d);
@@ -796,15 +822,17 @@ void buttonpress(XEvent *e) {
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
-    if ((ee->error_code == BadAccess      && (ee->request_code == X_GrabKey
-                    ||  ee->request_code == X_GrabButton))
-            || (ee->error_code == BadMatch       && (ee->request_code == X_SetInputFocus
+    if ((ee->error_code == BadAccess && (ee->request_code == X_GrabKey
+                ||  ee->request_code == X_GrabButton))
+            || (ee->error_code == BadMatch 
+                && (ee->request_code == X_SetInputFocus
                     ||  ee->request_code == X_ConfigureWindow))
             || (ee->error_code == BadWindow)) {
         focus(desktops->current, desktops);
         return 0;
     }
-    err(EXIT_FAILURE, "XError: request: %d code %d", ee->request_code, ee->error_code);
+    err(EXIT_FAILURE, "XError: request: %d code %d", 
+            ee->request_code, ee->error_code);
 }
 
 void killclient() {
