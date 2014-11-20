@@ -26,8 +26,8 @@
 #define ANIMATION_STEPS 1000
 // The number of desktops.
 #define DESKTOP_NUM     7
-#define BORDER_WIDTH    2
-#define FOCUS           "#aaaaaa"
+#define BORDER_WIDTH    3
+#define FOCUS           "#ffffff"
 #define UNFOCUS         "#666666"
 
 char* menucmd[]     = {"selectexec", NULL};
@@ -55,8 +55,8 @@ static struct key rootmap[] = {
   { 0,                  XK_equal,  fullwidth,      {NULL}},
   { ShiftMask,          XK_equal,  fullheight,     {NULL}},
   { 0,                  XK_f,      fullscreen,     {NULL}},
+  { 0,                  XK_b,      toggleborder,   {NULL}},
 
-  { 0,                  XK_b,      spawn,          {.com = batterycmd}},
   { 0,                  XK_t,      spawn,          {.com = timecmd}},
 
   {0,                   XK_Escape, exitsubmap,     {NULL}},

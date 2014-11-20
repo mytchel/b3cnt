@@ -76,6 +76,7 @@ struct client {
     client *next, *prev;
     int x, y, w, h;
     int full_width, full_height;
+    int b;
     Window win;
 };
 
@@ -100,6 +101,7 @@ static void bringtotop();
 static void fullwidth();
 static void fullheight();
 static void fullscreen();
+static void toggleborder();
 
 static void mousemove();
 static void mouseresize();
@@ -454,7 +456,7 @@ void focus(client *c, desktop *d) {
 void layout(desktop *d) {
     client *t; monitor *m;
     for (t = d->head; t; t = t->next) {
-        XSetWindowBorderWidth(dis, t->win, BORDER_WIDTH);
+        XSetWindowBorderWidth(dis, t->win, t->b ? BORDER_WIDTH : 0);
         XSetWindowBorder(dis, t->win, 
                 t == d->current ? win_focus : win_unfocus);
         XRaiseWindow(dis, t->win);
@@ -464,13 +466,13 @@ void layout(desktop *d) {
             if (!m) continue;
             if (t->full_width && t->full_height)
                 XMoveResizeWindow(dis, t->win, m->x, m->y, 
-                        m->w - BORDER_WIDTH * 2, m->h - BORDER_WIDTH * 2);
+                        m->w - (t->b ? BORDER_WIDTH : 0) * 2, m->h - (t->b ? BORDER_WIDTH : 0) * 2);
             else if (t->full_width)
                 XMoveResizeWindow(dis, t->win, m->x, t->y, 
-                        m->w - BORDER_WIDTH * 2, t->h);
+                        m->w - (t->b ? BORDER_WIDTH : 0) * 2, t->h);
             else if (t->full_height)
                 XMoveResizeWindow(dis, t->win, t->x, m->y, 
-                        t->w, m->h - BORDER_WIDTH * 2);
+                        t->w, m->h - (t->b ? BORDER_WIDTH : 0) * 2);
         } else
             XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
     }
@@ -507,6 +509,14 @@ void fullheight() {
 void fullscreen() {
     fullwidth();
     fullheight();
+}
+
+void toggleborder() {
+    client *c;
+    c = desktops->current;
+    if (!c) return;
+    c->b = !c->b;
+    layout(desktops);
 }
 
 void updateclient(client *c) {
@@ -603,6 +613,7 @@ void addwindow(Window w, desktop *d) {
 
     c->win = w;
     c->full_width = c->full_height = False;
+    c->b = True;
     updateclient(c);
    
     if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry,
