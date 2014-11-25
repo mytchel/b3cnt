@@ -26,7 +26,7 @@
 #define ANIMATION_STEPS 1000
 // The number of desktops.
 #define DESKTOP_NUM     7
-#define BORDER_WIDTH    3
+#define BORDER_WIDTH    2
 #define FOCUS           "#ffffff"
 #define UNFOCUS         "#666666"
 
@@ -38,6 +38,10 @@ char* timecmd[]     = {"showtime", NULL};
 // You will need this at the end of key arrays.
 #define END {0,0,NULL,{NULL}}
 
+#define DESKTOP(key, num) \
+    { Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
+    { Mod1Mask|ControlMask|ShiftMask, key, clienttodesktop, {.i = num}},
+
 static struct key rootmap[] = {
   { 0,                  XK_o,      shiftfocus,     {.i = 1}},
   { ShiftMask,          XK_o,      shiftfocus,     {.i = -1}},
@@ -47,17 +51,13 @@ static struct key rootmap[] = {
   { 0,                  XK_p,      shiftwindow,    {.i = -1}},
   { 0,                  XK_space,  bringtotop,     {NULL}},
 
-  { 0,                  XK_l,      changedesktop,  {.i = 1}}, 
-  { ShiftMask,          XK_l,      clienttodesktop,{.i = 1}}, 
-  { 0,                  XK_h,      changedesktop,  {.i = -1}}, 
-  { ShiftMask,          XK_h,      clienttodesktop,{.i = -1}}, 
-  
   { 0,                  XK_equal,  fullwidth,      {NULL}},
   { ShiftMask,          XK_equal,  fullheight,     {NULL}},
   { 0,                  XK_f,      fullscreen,     {NULL}},
-  { 0,                  XK_b,      toggleborder,   {NULL}},
+  { ShiftMask,          XK_b,      toggleborder,   {NULL}},
 
   { 0,                  XK_t,      spawn,          {.com = timecmd}},
+  { 0,                  XK_b,      spawn,          {.com = batterycmd}},
 
   {0,                   XK_Escape, exitsubmap,     {NULL}},
   {ControlMask,         XK_g,      exitsubmap,     {NULL}},
@@ -73,7 +73,14 @@ static struct key keys[] = {
   { Mod1Mask|ShiftMask,     XK_slash ,      spawn,          {.com = menucmd}}, 
   
   { Mod1Mask|ControlMask,   XK_x,           killclient,     {NULL}},
-  
+
+  DESKTOP(XK_1, 0)
+  DESKTOP(XK_2, 1)
+  DESKTOP(XK_3, 2)
+  DESKTOP(XK_4, 3)
+  DESKTOP(XK_5, 4)
+  DESKTOP(XK_6, 5)
+  DESKTOP(XK_7, 6)
   
   { Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,            {NULL}},
 
