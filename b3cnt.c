@@ -336,7 +336,7 @@ void updatemonitors() {
 void changedesktop(const struct Arg arg) {
     client *c;
 
-    if (arg.i < 0 || arg.i > DESKTOP_NUM)
+    if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
         return;
 
     // Update client positions before removing them.
