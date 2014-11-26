@@ -334,15 +334,10 @@ void updatemonitors() {
 }
 
 void changedesktop(const struct Arg arg) {
-    client *c; desktop *n;
-    /*
-    // Variables for animation.
-    int direction, total_width, x, offset;
-    XImage *nimage, *oimage;
-    Window owin, nwin;
-    GC ogc, ngc;
-    monitor *m;
-    */
+    client *c;
+
+    if (arg.i < 0 || arg.i > DESKTOP_NUM)
+        return;
 
     // Update client positions before removing them.
     for (c = desktops[current].head; c; c = c->next) 
@@ -393,8 +388,10 @@ void focus(client *c, desktop *d) {
     int i;
 
     if (d != &desktops[current]) {
-        while (current < DESKTOP_NUM && d != &desktops[current]) current++;
-        layout(d);
+        for (i = 0; i < DESKTOP_NUM && d != &desktops[i]; i++);
+        struct Arg arg;
+        arg.i = i;
+        changedesktop(arg);
     }
 
     if (d->current != c) {
