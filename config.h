@@ -34,6 +34,7 @@ char* menucmd[]     = {"selectexec", NULL};
 char* termcmd[]     = {"st", "-e", "tmux", NULL};
 char* batterycmd[]  = {"showbattery", NULL};
 char* timecmd[]     = {"showtime", NULL};
+char* lockcmd[]     = {"slock", NULL};
 
 // You will need this at the end of key arrays.
 #define END {0,0,NULL,{NULL}}
@@ -51,8 +52,8 @@ static struct key rootmap[] = {
   { 0,                  XK_p,      shiftwindow,    {.i = -1}},
   { 0,                  XK_space,  bringtotop,     {NULL}},
 
-  { 0,                  XK_equal,  fullwidth,      {NULL}},
-  { ShiftMask,          XK_equal,  fullheight,     {NULL}},
+  { 0,                  XK_equal,  fullheight,     {NULL}},
+  { ShiftMask,          XK_equal,  fullwidth,      {NULL}},
   { 0,                  XK_f,      fullscreen,     {NULL}},
   { ShiftMask,          XK_b,      toggleborder,   {NULL}},
 
@@ -73,6 +74,8 @@ static struct key keys[] = {
   { Mod1Mask|ShiftMask,     XK_slash ,      spawn,          {.com = menucmd}}, 
   
   { Mod1Mask|ControlMask,   XK_x,           killclient,     {NULL}},
+  
+  { Mod1Mask|ShiftMask,     XK_space,       spawn,          {.com = lockcmd}},
 
   DESKTOP(XK_1, 0)
   DESKTOP(XK_2, 1)

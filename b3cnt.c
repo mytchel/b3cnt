@@ -461,8 +461,14 @@ void fullheight() {
 }
 
 void fullscreen() {
-    fullwidth();
-    fullheight();
+    client *c;
+    c = desktops[current].current;
+    if (!c) return;
+    if (c->full_height && c->full_width)
+        c->full_height = c->full_width = False;
+    else
+        c->full_height = c->full_width = True;
+    layout(&desktops[current]);
 }
 
 void toggleborder() {
