@@ -156,6 +156,7 @@ static void enternotify(XEvent *e);
 static void keypress(XEvent *e);
 static void buttonpress(XEvent *e);
 static void configurerequest(XEvent *e);
+static void mappingnotify(XEvent *e);
 static int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee);
 
 // Variables
@@ -177,6 +178,7 @@ static void (*events[LASTEvent])(XEvent *e) = {
     [KeyPress] = keypress,
     [ButtonPress] = buttonpress,
     [EnterNotify] = enternotify,
+    [MappingNotify] = mappingnotify,
 };
 
 void setup() {
@@ -438,8 +440,8 @@ monitor *monitorholdingclient(client *c) {
     monitor *m;
     if (!c) return NULL;
     for (m = monitors; m; m = m->next) 
-        if (m->x <= c->x && m->x + m->w >= c->x
-                && m->y <= c->y && m->y + m->h >= c->y)
+        if (m->x <= c->x && m->x + m->w > c->x
+                && m->y <= c->y && m->y + m->h > c->y)
             return m;
     return monitors; // It was probably too far to the left to be in the first.
 }
@@ -776,9 +778,7 @@ void maprequest(XEvent *e) {
 
     XMapWindow(dis, ev->window);
 
-    if (wintoclient(ev->window, &c, &d)) 
-        focus(c, d);
-    else
+    if (!wintoclient(ev->window, &c, &d)) 
         addwindow(ev->window, &desktops[current]);
 }
 
@@ -787,7 +787,8 @@ void removewindow(Window w) {
     if (wintoclient(w, &c, &d)) {
         removeclient(c, d);
         free(c);
-        layout(d);
+        if (&desktops[current] == d)
+            layout(d);
     }
 }
 
@@ -838,6 +839,15 @@ void buttonpress(XEvent *e) {
             buttons[i].function(buttons[i].arg);
         }
     }
+}
+
+void mappingnotify(XEvent *e) {
+    fprintf(stderr, "Mapping notify!\n");
+    XMappingEvent *ev = &e->xmapping;
+
+    XRefreshKeyboardMapping(ev);
+    if (ev->request == MappingKeyboard)
+        grabkeys();
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
