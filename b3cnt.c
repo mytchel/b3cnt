@@ -46,48 +46,48 @@ enum { RESIZE, MOVE };
 enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
 enum { NET_SUPPORTED, NET_FULLSCREEN, NET_WM_STATE, NET_ACTIVE, NET_COUNT };
 
-typedef struct key key;
-typedef struct button button;
-typedef struct client client;
-typedef struct desktop desktop;
-typedef struct monitor monitor;
+typedef struct Key Key;
+typedef struct Button Button;
+typedef struct Client Client;
+typedef struct Desktop Desktop;
+typedef struct Monitor Monitor;
 
 struct Arg {
 	char** com;
 	int i;
-	key *map;
+	Key *map;
 };
 
-struct key {
+struct Key {
 	unsigned int mod;
 	KeySym keysym;
 	void (*function)(struct Arg arg);
 	struct Arg arg;
 };
 
-struct button {
+struct Button {
 	unsigned int mask;
 	unsigned int button;
 	void (*function)(struct Arg arg);
 	struct Arg arg;
 };
 
-struct client {
-	client *next, *prev;
+struct Client {
+	Client *next, *prev;
 	int x, y, w, h;
 	int full_width, full_height;
 	int b;
 	Window win;
 };
 
-struct desktop {
-	client *head, *current, *old;
-	desktop *next, *prev;
+struct Desktop {
+	Client *head, *current, *old;
+	Desktop *next, *prev;
 };
 
-struct monitor {
+struct Monitor {
 	int y, x, w, h;
-	monitor *next, *prev;
+	Monitor *next, *prev;
 };
 
 static void changedesktop(struct Arg arg);
@@ -125,29 +125,29 @@ static unsigned long getcolor(const char *color, const int screen);
 static void sendkillsignal(Window w);
 static void sigchld(int unused);
 
-static client *copyclient(client *o);
-static monitor *monitorholdingclient(client *c);
-static int wintoclient(Window w, client **c, desktop **d);
+static Client *copyclient(Client *o);
+static Monitor *monitorholdingclient(Client *c);
+static int wintoclient(Window w, Client **c, Desktop **d);
 
-static void layout(desktop *d);
-static void focus(client *c, desktop *d);
+static void layout(Desktop *d);
+static void focus(Client *c, Desktop *d);
 
-static void addwindow(Window w, desktop *d);
-// adds c after a on desktop d. if a is null then sets c to be head.
-static void addclient(client *c, client *a, desktop *d);
-static void removeclient(client *c, desktop *d);
+static void addwindow(Window w, Desktop *d);
+// adds c after a on Desktop d. if a is null then sets c to be head.
+static void addclient(Client *c, Client *a, Desktop *d);
+static void removeclient(Client *c, Desktop *d);
 static void removewindow(Window w);
-static void clienttotop(client *c, desktop *d);
-static client *lastclient(desktop *d);
+static void clienttotop(Client *c, Desktop *d);
+static Client *lastclient(Desktop *d);
 
-static void updateclient(client *c);
+static void updateclient(Client *c);
 
 static void mousemotion(int t);
 
 static void grabkeys();
-static int keypressed(XKeyEvent ke, key *map);
+static int keypressed(XKeyEvent ke, Key *map);
 static int iskeymod(KeySym keysym);
-static void listensubmap(key *map, int sticky);
+static void listensubmap(Key *map, int sticky);
 
 static void destroynotify(XEvent *e);
 static void maprequest(XEvent *e);
@@ -165,8 +165,8 @@ static Window root;
 static Atom wmatoms[WM_COUNT];
 static int screen, bool_quit, numlockmask;
 static unsigned int win_unfocus, win_focus;
-static monitor *monitors;
-static desktop desktops[DESKTOP_NUM];
+static Monitor *monitors;
+static Desktop desktops[DESKTOP_NUM];
 static int current;
 
 // Events array
@@ -253,7 +253,7 @@ void sigchld(int unused) {
 }
 
 void quit() {
-	client *c; int i;
+	Client *c; int i;
 
 	fprintf(stdout, "b3cnt: FINALLY. They've left,"
 			"now I can have some piece and quiet.\n");
@@ -267,25 +267,25 @@ void quit() {
 
 void updatemonitors() {
 	XineramaScreenInfo *info = NULL;
-	int i, j, monitor_count = 0, count = 0;
-	monitor *m, *new, *first;
-	desktop *d;
-	client *c;
+	int i, j, Monitor_count = 0, count = 0;
+	Monitor *m, *new, *first;
+	Desktop *d;
+	Client *c;
 
 	if (XineramaIsActive(dis)) {
 		for (first = monitors; first && first->prev; first = first->prev);
 
 		for (m = first; m; m = m->next)
-			monitor_count++;
+			Monitor_count++;
 
 		if (!(info = XineramaQueryScreens(dis, &count)))
 			die("Error xineramaQueryScreens!");
 
-		if (count > monitor_count) {
-			for (m = first; m && m->next; m = m->next); // Go to last monitor
+		if (count > Monitor_count) {
+			for (m = first; m && m->next; m = m->next); // Go to last Monitor
 
-			for (i = monitor_count; i < count; i++) {
-				if(!(new = (monitor *)calloc(1,sizeof(monitor))))
+			for (i = Monitor_count; i < count; i++) {
+				if(!(new = (Monitor *)calloc(1,sizeof(Monitor))))
 					die("Error calloc!");
 
 				new->prev = m;
@@ -299,14 +299,14 @@ void updatemonitors() {
 
 			for (monitors = m; monitors->prev; monitors = monitors->prev);
 			first = monitors;
-		} else if (count < monitor_count) {
+		} else if (count < Monitor_count) {
 			fprintf(stderr, "removing montiors\n");
 			if (count < 1)
-				die("A monitor could help");
+				die("A Monitor could help");
 
 			monitors = first;
 
-			// Just move all clients to first monitor for now.
+			// Just move all Clients to first Monitor for now.
 			// Later on may make it only move from monitors that are no longer
 			// there.
 
@@ -336,7 +336,7 @@ void updatemonitors() {
 }
 
 void changedesktop(const struct Arg arg) {
-	client *c;
+	Client *c;
 
 	if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
 		return;
@@ -365,7 +365,7 @@ void changedesktop(const struct Arg arg) {
 }
 
 void clienttodesktop(const struct Arg arg) {
-	client *c;
+	Client *c;
 
 	if (!desktops[current].current)
 		return;
@@ -376,17 +376,17 @@ void clienttodesktop(const struct Arg arg) {
 	addclient(c, lastclient(&desktops[current]), &desktops[current]);
 }
 
-client *copyclient(client *o) {
-	client *c;
-	c = malloc(sizeof(client));
+Client *copyclient(Client *o) {
+	Client *c;
+	c = malloc(sizeof(Client));
 	c->win = o->win; c->next = o->next; c->prev = o->prev;
 	c->x = o->x; c->y = o->y; c->w = o->w; c->h = o->h;
 	c->full_width = o->full_width; c->full_height = o->full_height;
 	return c; 
 }
 
-void focus(client *c, desktop *d) {
-	client *t;
+void focus(Client *c, Desktop *d) {
+	Client *t;
 	int i;
 
 	if (d != &desktops[current]) {
@@ -409,8 +409,8 @@ void focus(client *c, desktop *d) {
 	}
 }
 
-void layout(desktop *d) {
-	client *t; monitor *m;
+void layout(Desktop *d) {
+	Client *t; Monitor *m;
 	for (t = d->head; t; t = t->next) {
 		XSetWindowBorderWidth(dis, t->win, t->b ? BORDER_WIDTH : 0);
 		XSetWindowBorder(dis, t->win, 
@@ -437,8 +437,8 @@ void layout(desktop *d) {
 	focus(d->current, d);
 }
 
-monitor *monitorholdingclient(client *c) {
-	monitor *m;
+Monitor *monitorholdingclient(Client *c) {
+	Monitor *m;
 	if (!c) return NULL;
 	for (m = monitors; m; m = m->next) 
 		if (m->x <= c->x && m->x + m->w > c->x
@@ -448,7 +448,7 @@ monitor *monitorholdingclient(client *c) {
 }
 
 void fullwidth() {
-	client *c;
+	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
 	c->full_width = !c->full_width;
@@ -456,7 +456,7 @@ void fullwidth() {
 }
 
 void fullheight() {
-	client *c;
+	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
 	c->full_height = !c->full_height;
@@ -464,7 +464,7 @@ void fullheight() {
 }
 
 void fullscreen() {
-	client *c;
+	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
 	if (c->full_height && c->full_width)
@@ -475,14 +475,14 @@ void fullscreen() {
 }
 
 void toggleborder() {
-	client *c;
+	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
 	c->b = !c->b;
 	layout(&desktops[current]);
 }
 
-void updateclient(client *c) {
+void updateclient(Client *c) {
 	XWindowAttributes window_attributes;
 
 	if (!c)
@@ -504,15 +504,15 @@ void bringtotop() {
 		clienttotop(desktops[current].current, &desktops[current]);
 }
 
-void clienttotop(client *c, desktop *d) {
-	client *o;
+void clienttotop(Client *c, Desktop *d) {
+	Client *o;
 	removeclient(c, d);
 	for (o = d->head; o && o->next; o = o->next);
 	addclient(c, lastclient(d), d);
 }
 
 void shiftfocus(struct Arg arg) {
-	client *c;
+	Client *c;
 
 	c = desktops[current].current;
 	if (!c)
@@ -534,14 +534,14 @@ void shiftfocus(struct Arg arg) {
 }
 
 void focusprev() {
-	client *c;
+	Client *c;
 
 	if (desktops[current].old)
 		focus(desktops[current].old, &desktops[current]);
 }
 
 void shiftwindow(struct Arg arg) {
-	client *c;
+	Client *c;
 
 	c = desktops[current].current;
 	if (!c) return;
@@ -555,14 +555,14 @@ void shiftwindow(struct Arg arg) {
 	}
 }
 
-void addwindow(Window w, desktop *d) {
+void addwindow(Window w, Desktop *d) {
 	int i, mi;
 	int modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask };
 	Window win_away; // Don't care about this.
 	int rx, ry, dont_care, v;
-	client *c;
+	Client *c; Monitor *m;
 
-	if(!(c = malloc(sizeof(client))))
+	if(!(c = malloc(sizeof(Client))))
 		die("Error malloc!");
 
 	XSelectInput(dis, w, EnterWindowMask);
@@ -585,15 +585,21 @@ void addwindow(Window w, desktop *d) {
 		c->y = ry - c->h / 2;
 	}
 
+	m = monitorholdingclient(c);
+
 	if (c->x < 0)
 		c->x = 0;
+	if (c->x + c->w > m->w)
+		c->x = m->w - c->w - BORDER_WIDTH * 2 - 1;
 	if (c->y < 0)
 		c->y = 0;
+	if (c->y + c->h > m->h)
+		c->y = m->h - c->h - BORDER_WIDTH * 2 - 1;
 
 	addclient(c, lastclient(d), d);
 }
 
-void addclient(client *n, client *a, desktop *d) {
+void addclient(Client *n, Client *a, Desktop *d) {
 	if (!d->head) {
 		d->head = n;
 		d->current = d->old = NULL;
@@ -616,14 +622,14 @@ void addclient(client *n, client *a, desktop *d) {
 	focus(n, d);
 }
 
-client *lastclient(desktop *d) {
-	client *c;
+Client *lastclient(Desktop *d) {
+	Client *c;
 	for (c = d->head; c && c->next; c = c->next);
 	return c;
 }
 
-void removeclient(client *c, desktop *d) {
-	client *p;
+void removeclient(Client *c, Desktop *d) {
+	Client *p;
 
 	if (d->head == c)
 		d->head = c->next;
@@ -642,7 +648,7 @@ void removeclient(client *c, desktop *d) {
 		c->next->prev = c->prev;
 }
 
-int wintoclient(Window w, client **c, desktop **d) {
+int wintoclient(Window w, Client **c, Desktop **d) {
 	int i;
 
 	for (i = 0; i < DESKTOP_NUM; i++) {
@@ -670,7 +676,7 @@ void grabkeys() {
 	}
 }
 
-int keypressed(XKeyEvent ke, key *map) {
+int keypressed(XKeyEvent ke, Key *map) {
 	int i;
 	KeySym keysym = XLookupKeysym(&ke, 0);
 	for (i = 0; map[i].function; i++) {
@@ -696,7 +702,7 @@ int iskeymod(KeySym keysym) {
 	return False;
 }
 
-void listensubmap(key *map, int sticky) {
+void listensubmap(Key *map, int sticky) {
 	XEvent ev;
 	KeySym keysym;
 
@@ -740,7 +746,7 @@ void mousemotion(int t) {
 	Window w, wr;
 	XWindowAttributes wa;
 	XEvent ev;
-	client *c; desktop *d;
+	Client *c; Desktop *d;
 
 	if (!XQueryPointer(dis, root, &w, &wr, &rx, &ry, &dc, &dc, &v) 
 			|| !wintoclient(wr, &c, &d)) return;
@@ -781,7 +787,7 @@ void mousemotion(int t) {
 void maprequest(XEvent *e) {
 	fprintf(stderr, "map\n");
 	XMapRequestEvent *ev = &e->xmaprequest;
-	client *c; desktop *d;
+	Client *c; Desktop *d;
 
 	XMapWindow(dis, ev->window);
 
@@ -790,7 +796,7 @@ void maprequest(XEvent *e) {
 }
 
 void removewindow(Window w) {
-	client *c; desktop *d;
+	Client *c; Desktop *d;
 	if (wintoclient(w, &c, &d)) {
 		removeclient(c, d);
 		free(c);
@@ -810,14 +816,14 @@ void destroynotify(XEvent *e) {
 }
 
 void enternotify(XEvent *e) {
-	client *c; desktop *d;
+	Client *c; Desktop *d;
 	if (wintoclient(e->xcrossing.window, &c, &d)) 
 		focus(c, d); 
 }
 
 void configurerequest(XEvent *e) {
 	fprintf(stderr, "configurerequest?\n");
-	client *c; desktop *d; monitor *m;
+	Client *c; Desktop *d; Monitor *m;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	if (wintoclient(ev->window, &c, &d)) {
 		c->x = ev->x;
