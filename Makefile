@@ -2,7 +2,7 @@ CFLAGS+= -Wall
 LDADD+= -lX11 -lXinerama
 EXEC=b3cnt-floating
 FILES=b3cnt.c config.h
-BINDIR?= /usr/bin
+BINDIR?= /usr/local/bin
 
 CC=gcc
 
@@ -16,6 +16,9 @@ b3cnt.o: $(FILES)
 
 install: all
 	install -Dm 755 $(EXEC) $(BINDIR)/$(EXEC)
+
+uninstall: 
+	rm $(BINDIR)/$(EXEC)
 
 clean:
 	rm -f $(EXEC) *.o

@@ -37,8 +37,10 @@
 
 #define LEN(X)	  (sizeof(X)/sizeof(*X))
 #define CLEANMASK(mask) (mask & ~(numlockmask | LockMask))
-#define ROOTMASK   SubstructureRedirectMask|ButtonPressMask| \
-	SubstructureNotifyMask|PropertyChangeMask
+#define ROOTMASK   PropertyChangeMask|ButtonPressMask \
+                 | SubstructureRedirectMask \
+                 | SubstructureNotifyMask
+#define SUBMASK    EnterWindowMask 
 
 #define MINWSZ 20
 
@@ -162,7 +164,6 @@ static int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee);
 // Variables
 static Display *dis;
 static Window root;
-static Atom wmatoms[WM_COUNT];
 static int screen, bool_quit, numlockmask;
 static unsigned int win_unfocus, win_focus;
 static Monitor *monitors;
@@ -201,14 +202,11 @@ void setup() {
 				== XKeysymToKeycode(dis, XK_Num_Lock))
 			numlockmask = (1 << k);
 	XFreeModifiermap(modmap);
-
-	wmatoms[WM_PROTOCOLS] = XInternAtom(dis, "WM_PROTOCOLS", False);
-	wmatoms[WM_DELETE_WINDOW] = XInternAtom(dis, "WM_DELETE_WINDOW", False);
-
+	
 	XSelectInput(dis, root, ROOTMASK);
-	XSync(dis, False);
+//	XSync(dis, False);
 	XSetErrorHandler(xerror);
-	XSync(dis, False);
+//	XSync(dis, False);
 
 	current = 0;
 	for (i = 0; i < DESKTOP_NUM; i++)
@@ -239,8 +237,8 @@ void sendkillsignal(Window w) {
 	ke.type = ClientMessage;
 	ke.xclient.window = w;
 	ke.xclient.format = 32;
-	ke.xclient.message_type = wmatoms[WM_PROTOCOLS];
-	ke.xclient.data.l[0]	= wmatoms[WM_DELETE_WINDOW];
+	ke.xclient.message_type = XInternAtom(dis, "WM_PROTOCOLS", False);
+	ke.xclient.data.l[0]	= XInternAtom(dis, "WM_DELETE_WINDOW", False);
 	ke.xclient.data.l[1]	= CurrentTime;
 	XSendEvent(dis, w, False, NoEventMask, &ke);
 }
@@ -505,9 +503,7 @@ void bringtotop() {
 }
 
 void clienttotop(Client *c, Desktop *d) {
-	Client *o;
 	removeclient(c, d);
-	for (o = d->head; o && o->next; o = o->next);
 	addclient(c, lastclient(d), d);
 }
 
@@ -561,11 +557,12 @@ void addwindow(Window w, Desktop *d) {
 	Window win_away; // Don't care about this.
 	int rx, ry, dont_care, v;
 	Client *c; Monitor *m;
+	int dw, dh;
 
 	if(!(c = malloc(sizeof(Client))))
 		die("Error malloc!");
 
-	XSelectInput(dis, w, EnterWindowMask);
+	XSelectInput(dis, w, SUBMASK);
 
 	for (mi = 0; mi < LEN(modifiers); mi++) 
 		for (i = 0; i < LEN(buttons); i++)
@@ -585,16 +582,21 @@ void addwindow(Window w, Desktop *d) {
 		c->y = ry - c->h / 2;
 	}
 
-	m = monitorholdingclient(c);
+	for (dw = dh = 0, m = monitors; m; m = m->next) {
+		if (m->x + m->w > dw)
+			dw = m->x + m->w;
+		if (m->y + m->h > dh)
+			dh = m->y + m->h;
+	}
 
 	if (c->x < 0)
 		c->x = 0;
-	if (c->x + c->w > m->w)
-		c->x = m->w - c->w - BORDER_WIDTH * 2 - 1;
+	if (c->x + c->w > dw)
+		c->x = dw - c->w - BORDER_WIDTH * 2 - 1;
 	if (c->y < 0)
 		c->y = 0;
-	if (c->y + c->h > m->h)
-		c->y = m->h - c->h - BORDER_WIDTH * 2 - 1;
+	if (c->y + c->h > dh)
+		c->y = dh - c->h - BORDER_WIDTH * 2 - 1;
 
 	addclient(c, lastclient(d), d);
 }
@@ -789,10 +791,12 @@ void maprequest(XEvent *e) {
 	XMapRequestEvent *ev = &e->xmaprequest;
 	Client *c; Desktop *d;
 
-	XMapWindow(dis, ev->window);
-
-	if (!wintoclient(ev->window, &c, &d)) 
+	if (!wintoclient(ev->window, &c, &d)) {
+		XMapWindow(dis, ev->window);
 		addwindow(ev->window, &desktops[current]);
+	} else {
+		fprintf(stderr, "window I already have wants to be mapped, it can fuck off\n");
+	}
 }
 
 void removewindow(Window w) {
@@ -800,8 +804,10 @@ void removewindow(Window w) {
 	if (wintoclient(w, &c, &d)) {
 		removeclient(c, d);
 		free(c);
-		if (&desktops[current] == d)
+		if (&desktops[current] == d) {
+			fprintf(stderr, "removing window from current desktop so will re-layout\n");
 			layout(d);
+		}
 	}
 }
 
@@ -822,7 +828,7 @@ void enternotify(XEvent *e) {
 }
 
 void configurerequest(XEvent *e) {
-	fprintf(stderr, "configurerequest?\n");
+	fprintf(stderr, "configurerequest\n");
 	Client *c; Desktop *d; Monitor *m;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	if (wintoclient(ev->window, &c, &d)) {
@@ -831,13 +837,18 @@ void configurerequest(XEvent *e) {
 		c->w = ev->width;
 		c->h = ev->height;
 		m = monitorholdingclient(c);
-		c->full_width = c->full_height = False;
-		if (c->w == m->w)
-			c->full_width = True;
-		if (c->h == m->h)
-			c->full_height = True;
-		layout(d);
-		focus(c, d);
+		c->full_width = c->w == m->w;
+		c->full_height = c->h == m->h;
+		if (ev->detail == Above) {
+			clienttotop(c, d);
+		} else if (ev->detail == Below) {
+			removeclient(c, d);
+			addclient(c, NULL, d);
+		}
+		if (d == &desktops[current]) {
+			layout(d);
+			focus(c, d);
+		}
 	}
 }
 
