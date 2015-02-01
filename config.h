@@ -31,6 +31,7 @@
 #define UNFOCUS			"#666666"
 
 char* menucmd[]     = {"selectexec", NULL};
+char* wincmd[]      = {"selectwindow", NULL};
 char* termcmd[]     = {"st", "-e", "tmux", NULL};
 char* batterycmd[]  = {"showbattery", NULL};
 char* timecmd[]     = {"showtime", NULL};
@@ -98,7 +99,7 @@ static struct Key keys[] = {
 
 static struct Button buttons[] = {
 	{ Mod1Mask,         Button1,    mousemove,      {NULL}},
-	{ Mod1Mask,         Button2,    mouseresize,    {NULL}},
+	{ Mod1Mask,         Button2,    spawn,          {.com = wincmd}},
 	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
 };
 

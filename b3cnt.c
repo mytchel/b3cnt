@@ -568,7 +568,7 @@ void addwindow(Window w, Desktop *d) {
 		for (i = 0; i < LEN(buttons); i++)
 			XGrabButton(dis, buttons[i].button, 
 					buttons[i].mask|modifiers[mi], w,
-					False, ButtonPressMask|ButtonReleaseMask,
+					False, ButtonPressMask,
 					GrabModeAsync, GrabModeAsync, None, None);
 
 	c->win = w;
