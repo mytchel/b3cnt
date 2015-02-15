@@ -77,8 +77,7 @@ struct Button {
 struct Client {
 	Client *next, *prev;
 	int x, y, w, h;
-	int full_width, full_height;
-	int b;
+	int b, full_height, full_width;
 	Window win;
 };
 
@@ -379,7 +378,6 @@ Client *copyclient(Client *o) {
 	c = malloc(sizeof(Client));
 	c->win = o->win; c->next = o->next; c->prev = o->prev;
 	c->x = o->x; c->y = o->y; c->w = o->w; c->h = o->h;
-	c->full_width = o->full_width; c->full_height = o->full_height;
 	return c; 
 }
 
@@ -408,6 +406,7 @@ void focus(Client *c, Desktop *d) {
 }
 
 void layout(Desktop *d) {
+	int x, y, w, h;
 	Client *t; Monitor *m;
 	for (t = d->head; t; t = t->next) {
 		XSetWindowBorderWidth(dis, t->win, t->b ? BORDER_WIDTH : 0);
@@ -415,21 +414,29 @@ void layout(Desktop *d) {
 				t == d->current ? win_focus : win_unfocus);
 		XRaiseWindow(dis, t->win);
 
-		if (t->full_width || t->full_height) {
-			m = monitorholdingclient(t);
-			if (!m) continue;
-			if (t->full_width && t->full_height)
-				XMoveResizeWindow(dis, t->win, m->x, m->y, 
-						m->w - (t->b ? BORDER_WIDTH : 0) * 2,
-						m->h - (t->b ? BORDER_WIDTH : 0) * 2);
-			else if (t->full_width)
-				XMoveResizeWindow(dis, t->win, m->x, t->y, 
-						m->w - (t->b ? BORDER_WIDTH : 0) * 2, t->h);
-			else if (t->full_height)
-				XMoveResizeWindow(dis, t->win, t->x, m->y, 
-						t->w, m->h - (t->b ? BORDER_WIDTH : 0) * 2);
-		} else
-			XMoveResizeWindow(dis, t->win, t->x, t->y, t->w, t->h);
+		m = monitorholdingclient(t);
+		
+		if (t->full_height) {
+			y = m->y;
+			h = m->h - (t->b ? BORDER_WIDTH * 2: 0);
+		} else {
+			y = t->y;
+			h = t->h;
+		}
+
+		if (t->full_width) {
+			x = m->x;
+			w = m->w - (t->b ? BORDER_WIDTH * 2: 0);
+		} else {
+			x = t->x;
+			w = t->w;
+		}
+
+		XMoveResizeWindow(dis, t->win, 
+				x,
+				y,
+				w,
+				h);
 	}
 
 	focus(d->current, d);
@@ -462,20 +469,19 @@ void fullheight() {
 }
 
 void fullscreen() {
-	Client *c;
-	c = desktops[current].current;
-	if (!c) return;
-	if (c->full_height && c->full_width)
-		c->full_height = c->full_width = False;
-	else
-		c->full_height = c->full_width = True;
-	layout(&desktops[current]);
+	fullwidth();
+	fullheight();
 }
 
 void toggleborder() {
+	int a;
 	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
+	
+	c->w += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
+	c->h += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
+
 	c->b = !c->b;
 	layout(&desktops[current]);
 }
@@ -572,8 +578,9 @@ void addwindow(Window w, Desktop *d) {
 					GrabModeAsync, GrabModeAsync, None, None);
 
 	c->win = w;
-	c->full_width = c->full_height = False;
 	c->b = True;
+	c->full_width = False;
+	c->full_height = False;
 	updateclient(c);
 
 	if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry,
@@ -766,7 +773,6 @@ void mousemotion(int t) {
 				None, None, CurrentTime) != GrabSuccess) return;
 
 	clienttotop(c, d);
-	c->full_width = c->full_height = 0;
 
 	do {
 		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask
@@ -837,14 +843,13 @@ void configurerequest(XEvent *e) {
 		c->w = ev->width;
 		c->h = ev->height;
 		m = monitorholdingclient(c);
-		c->full_width = c->w == m->w;
-		c->full_height = c->h == m->h;
 		if (ev->detail == Above) {
 			clienttotop(c, d);
 		} else if (ev->detail == Below) {
 			removeclient(c, d);
 			addclient(c, NULL, d);
 		}
+
 		if (d == &desktops[current]) {
 			layout(d);
 			focus(c, d);

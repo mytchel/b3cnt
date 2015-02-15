@@ -35,7 +35,7 @@ char* wincmd[]      = {"selectwindow", NULL};
 char* termcmd[]     = {"st", "-e", "tmux", NULL};
 char* batterycmd[]  = {"showbattery", NULL};
 char* timecmd[]     = {"showtime", NULL};
-char* lockcmd[]     = {"slock", NULL};
+char* lockcmd[]     = {"lock", NULL};
 char* pausecmd[]    = {"mmusicd", "pause", NULL};
 char* alsacmd[]     = {"st", "-e", "alsamixer", NULL};
 
@@ -68,8 +68,6 @@ static struct Key mainmap[] = {
 	{0,                     XK_Escape, exitsubmap,	   {NULL}},
 	{ControlMask,			XK_g,      exitsubmap,     {NULL}},
 
-	{ShiftMask,             XK_p,      spawn,          {.com = pausecmd}},
-
 	END
 };
 
@@ -83,6 +81,7 @@ static struct Key keys[] = {
 	{ Mod1Mask|ControlMask,	XK_x,           killclient,     {NULL}},
 
 	{ Mod1Mask|ShiftMask,   XK_space,       spawn,          {.com = lockcmd}},
+	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
 
 	DESKTOP(XK_1, 0),
 	DESKTOP(XK_2, 1),
