@@ -42,12 +42,11 @@
                  | SubstructureNotifyMask
 #define SUBMASK    EnterWindowMask 
 
-#define MINWSZ 20
-
 enum { RESIZE, MOVE };
 enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
 enum { NET_SUPPORTED, NET_FULLSCREEN, NET_WM_STATE, NET_ACTIVE, NET_COUNT };
 
+typedef struct Arg Arg;
 typedef struct Key Key;
 typedef struct Button Button;
 typedef struct Client Client;
@@ -63,15 +62,15 @@ struct Arg {
 struct Key {
 	unsigned int mod;
 	KeySym keysym;
-	void (*function)(struct Arg arg);
-	struct Arg arg;
+	void (*function)(Arg arg);
+	Arg arg;
 };
 
 struct Button {
 	unsigned int mask;
 	unsigned int button;
-	void (*function)(struct Arg arg);
-	struct Arg arg;
+	void (*function)(Arg arg);
+	Arg arg;
 };
 
 struct Client {
@@ -91,12 +90,12 @@ struct Monitor {
 	Monitor *next, *prev;
 };
 
-static void changedesktop(struct Arg arg);
-static void clienttodesktop(struct Arg arg);
+static void changedesktop(Arg arg);
+static void clienttodesktop(Arg arg);
 
-static void shiftfocus(struct Arg arg);
+static void shiftfocus(Arg arg);
 static void focusprev();
-static void shiftwindow(struct Arg arg);
+static void pushtobottom();
 static void bringtotop();
 
 static void fullwidth();
@@ -107,11 +106,11 @@ static void toggleborder();
 static void mousemove();
 static void mouseresize();
 
-static void submap(struct Arg arg);
-static void stickysubmap(struct Arg arg);
+static void submap(Arg arg);
+static void stickysubmap(Arg arg);
 static void exitsubmap();
 
-static void spawn(const struct Arg arg);
+static void spawn(Arg arg);
 static void killclient();
 
 static void updatemonitors();
@@ -120,13 +119,12 @@ static void quit();
 #include "config.h"
 
 static void setup();
-static void die(const char* e);
-static unsigned long getcolor(const char *color, const int screen);
+static void die(char* e);
+static unsigned long getcolor(char *color, int screen);
 
 static void sendkillsignal(Window w);
 static void sigchld(int unused);
 
-static Client *copyclient(Client *o);
 static Monitor *monitorholdingclient(Client *c);
 static int wintoclient(Window w, Client **c, Desktop **d);
 
@@ -138,10 +136,14 @@ static void addwindow(Window w, Desktop *d);
 static void addclient(Client *c, Client *a, Desktop *d);
 static void removeclient(Client *c, Desktop *d);
 static void removewindow(Window w);
+
 static void clienttotop(Client *c, Desktop *d);
+static void clienttobottom(Client *c, Desktop *d);
+
 static Client *lastclient(Desktop *d);
 
-static void updateclient(Client *c);
+static void updateclientdata(Client *c);
+static void updateclientwin(Client *c);
 
 static void mousemotion(int t);
 
@@ -203,9 +205,7 @@ void setup() {
 	XFreeModifiermap(modmap);
 	
 	XSelectInput(dis, root, ROOTMASK);
-//	XSync(dis, False);
 	XSetErrorHandler(xerror);
-//	XSync(dis, False);
 
 	current = 0;
 	for (i = 0; i < DESKTOP_NUM; i++)
@@ -217,14 +217,14 @@ void setup() {
 	XSync(dis, False);
 }
 
-unsigned long getcolor(const char *color, const int screen) {
+unsigned long getcolor(char *color, int screen) {
 	XColor c; Colormap map = DefaultColormap(dis, screen);
 	if (!XAllocNamedColor(dis, map, color, &c, &c))
 		die("Cannot allocate color.");
 	return c.pixel;
 }
 
-void die(const char* e) {
+void die(char* e) {
 	fprintf(stderr, "b3cnt: %s\n",e);
 	exit(1);
 }
@@ -264,67 +264,61 @@ void quit() {
 
 void updatemonitors() {
 	XineramaScreenInfo *info = NULL;
-	int i, j, Monitor_count = 0, count = 0;
-	Monitor *m, *new, *first;
-	Desktop *d;
-	Client *c;
-
+	int i, count, mcount = 0;
+	Monitor *m, *new;
+	Client *c; Desktop *d;
+	
 	if (XineramaIsActive(dis)) {
-		for (first = monitors; first && first->prev; first = first->prev);
-
-		for (m = first; m; m = m->next)
-			Monitor_count++;
-
+		for (m = monitors; m; m = m->next)
+			mcount++;
+		
 		if (!(info = XineramaQueryScreens(dis, &count)))
 			die("Error xineramaQueryScreens!");
 
-		if (count > Monitor_count) {
-			for (m = first; m && m->next; m = m->next); // Go to last Monitor
-
-			for (i = Monitor_count; i < count; i++) {
-				if(!(new = (Monitor *)calloc(1,sizeof(Monitor))))
-					die("Error calloc!");
-
+		if (count < 1) {
+			die("A monitor could help!");
+		} else if (count > mcount) {
+			for (m = monitors; m && m->next; m = m->next); // Go to last Monitor
+			for (i = mcount; i < count; i++) {
+				new = malloc(sizeof(Monitor));
+				if (!monitors) monitors = new;
 				new->prev = m;
 				new->next = NULL;
-
 				if (m)
 					m->next = new;
-
 				m = new;
 			}
-
-			for (monitors = m; monitors->prev; monitors = monitors->prev);
-			first = monitors;
-		} else if (count < Monitor_count) {
-			fprintf(stderr, "removing montiors\n");
-			if (count < 1)
-				die("A Monitor could help");
-
-			monitors = first;
-
+		} else if (count < mcount) {
 			// Just move all Clients to first Monitor for now.
 			// Later on may make it only move from monitors that are no longer
 			// there.
 
 			for (i = 0; i < DESKTOP_NUM; i++) {
 				for (c = desktops[i].head; c; c = c->next) {
-					if (monitorholdingclient(c) != first) {
-						c->x = monitors->x;
-						c->y = monitors->y;
-					}
+					// For the sake of simplicity.
+					// Will change latter.
+					c->x = 0;
+					c->y = 0;
+					updateclientwin(c);
 				}
+			}
+
+			for (m = monitors, i = 0; m && i < count; m = m->next) i++;
+			while (m) {
+				new = m;
+				m = new->next;
+				if (new->prev)
+					new->prev->next = NULL;
+				free(new);
 			}
 		}
 
-		for (m = first, i = 0; m; m = m->next, i++) {
+		for (m = monitors, i = 0; m; m = m->next, i++) {
 			m->w = info[i].width;
 			m->h = info[i].height;
 			m->x = info[i].x_org;
 			m->y = info[i].y_org;
 		}
-
-		monitors = first;
 
 		layout(&desktops[current]);
 
@@ -332,7 +326,7 @@ void updatemonitors() {
 	}
 }
 
-void changedesktop(const struct Arg arg) {
+void changedesktop(Arg arg) {
 	Client *c;
 
 	if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
@@ -340,7 +334,7 @@ void changedesktop(const struct Arg arg) {
 
 	// Update client positions before removing them.
 	for (c = desktops[current].head; c; c = c->next) 
-		updateclient(c);
+		updateclientdata(c);
 
 	for (c = desktops[arg.i].head; c; c = c->next) 
 		XMapWindow(dis, c->win);
@@ -351,17 +345,17 @@ void changedesktop(const struct Arg arg) {
 
 	for (c = desktops[current].head; c; c = c->next) 
 		XUnmapWindow(dis, c->win);
+	
+	layout(&desktops[current]);
 
 	// Now ok to listen to events.
 	XChangeWindowAttributes(dis, root, CWEventMask, 
-			&(XSetWindowAttributes){.event_mask = ROOTMASK});
-
+			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
+	
 	current = arg.i;
-
-	layout(&desktops[current]);
 }
 
-void clienttodesktop(const struct Arg arg) {
+void clienttodesktop(Arg arg) {
 	Client *c;
 
 	if (!desktops[current].current)
@@ -371,14 +365,7 @@ void clienttodesktop(const struct Arg arg) {
 	removeclient(c, &desktops[current]);
 	changedesktop(arg);
 	addclient(c, lastclient(&desktops[current]), &desktops[current]);
-}
-
-Client *copyclient(Client *o) {
-	Client *c;
-	c = malloc(sizeof(Client));
-	c->win = o->win; c->next = o->next; c->prev = o->prev;
-	c->x = o->x; c->y = o->y; c->w = o->w; c->h = o->h;
-	return c; 
+	focus(c, &desktops[current]);
 }
 
 void focus(Client *c, Desktop *d) {
@@ -387,7 +374,7 @@ void focus(Client *c, Desktop *d) {
 
 	if (d != &desktops[current]) {
 		for (i = 0; i < DESKTOP_NUM && d != &desktops[i]; i++);
-		struct Arg arg;
+		Arg arg;
 		arg.i = i;
 		changedesktop(arg);
 	}
@@ -406,40 +393,47 @@ void focus(Client *c, Desktop *d) {
 }
 
 void layout(Desktop *d) {
-	int x, y, w, h;
-	Client *t; Monitor *m;
-	for (t = d->head; t; t = t->next) {
-		XSetWindowBorderWidth(dis, t->win, t->b ? BORDER_WIDTH : 0);
-		XSetWindowBorder(dis, t->win, 
-				t == d->current ? win_focus : win_unfocus);
-		XRaiseWindow(dis, t->win);
-
-		m = monitorholdingclient(t);
-		
-		if (t->full_height) {
-			y = m->y;
-			h = m->h - (t->b ? BORDER_WIDTH * 2: 0);
-		} else {
-			y = t->y;
-			h = t->h;
-		}
-
-		if (t->full_width) {
-			x = m->x;
-			w = m->w - (t->b ? BORDER_WIDTH * 2: 0);
-		} else {
-			x = t->x;
-			w = t->w;
-		}
-
-		XMoveResizeWindow(dis, t->win, 
-				x,
-				y,
-				w,
-				h);
+	Client *c;
+	for (c = d->head; c; c = c->next) {
+		XRaiseWindow(dis, c->win);
+		updateclientwin(c);
 	}
 
 	focus(d->current, d);
+}
+
+void updateclientwin(Client *c) {
+	int x, y, w, h;
+	Monitor *m;
+	int b = c->b ? BORDER_WIDTH * 2 : 0;
+
+	XSetWindowBorderWidth(dis, c->win, c->b ? BORDER_WIDTH : 0);
+	XSetWindowBorder(dis, c->win, 
+			c == desktops[current].current ? win_focus : win_unfocus);
+
+	m = monitorholdingclient(c);
+
+	if (c->full_height) {
+		y = m->y;
+		h = m->h - b;
+	} else {
+		y = c->y;
+		h = c->h;
+	}
+
+	if (c->full_width) {
+		x = m->x;
+		w = m->w - b;
+	} else {
+		x = c->x;
+		w = c->w;
+	}
+
+	XMoveResizeWindow(dis, c->win, 
+			x,
+			y,
+			w,
+			h);
 }
 
 Monitor *monitorholdingclient(Client *c) {
@@ -453,24 +447,27 @@ Monitor *monitorholdingclient(Client *c) {
 }
 
 void fullwidth() {
-	Client *c;
-	c = desktops[current].current;
+	Client *c = desktops[current].current;
 	if (!c) return;
 	c->full_width = !c->full_width;
-	layout(&desktops[current]);
+	updateclientwin(c);
 }
 
 void fullheight() {
-	Client *c;
-	c = desktops[current].current;
+	Client *c = desktops[current].current;
 	if (!c) return;
 	c->full_height = !c->full_height;
-	layout(&desktops[current]);
+	updateclientwin(c);
 }
 
 void fullscreen() {
-	fullwidth();
-	fullheight();
+	Client *c = desktops[current].current;
+	if (!c) return;
+	if (c->full_width && c->full_height)
+		c->full_width = c->full_height = 0;
+	else
+		c->full_width = c->full_height = 1;
+	updateclientwin(c);
 }
 
 void toggleborder() {
@@ -478,15 +475,15 @@ void toggleborder() {
 	Client *c;
 	c = desktops[current].current;
 	if (!c) return;
-	
+
 	c->w += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
 	c->h += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
 
 	c->b = !c->b;
-	layout(&desktops[current]);
+	updateclientwin(c);
 }
 
-void updateclient(Client *c) {
+void updateclientdata(Client *c) {
 	XWindowAttributes window_attributes;
 
 	if (!c)
@@ -499,8 +496,13 @@ void updateclient(Client *c) {
 
 	c->x = window_attributes.x;
 	c->y = window_attributes.y;
-	c->w = window_attributes.width;
-	c->h = window_attributes.height;
+	c->w = window_attributes.width > MIN ? window_attributes.width : MIN;
+	c->h = window_attributes.height > MIN ? window_attributes.height : MIN;
+}
+
+void pushtobottom() {
+	if (desktops[current].current)
+		clienttobottom(desktops[current].current, &desktops[current]);
 }
 
 void bringtotop() {
@@ -508,12 +510,21 @@ void bringtotop() {
 		clienttotop(desktops[current].current, &desktops[current]);
 }
 
+void clienttobottom(Client *c, Desktop *d) {
+	removeclient(c, d);
+	addclient(c, NULL, d);
+	XLowerWindow(dis, c->win);
+	focus(c, d);
+}
+
 void clienttotop(Client *c, Desktop *d) {
 	removeclient(c, d);
 	addclient(c, lastclient(d), d);
+	XRaiseWindow(dis, c->win);
+	focus(c, d);
 }
 
-void shiftfocus(struct Arg arg) {
+void shiftfocus(Arg arg) {
 	Client *c;
 
 	c = desktops[current].current;
@@ -542,21 +553,6 @@ void focusprev() {
 		focus(desktops[current].old, &desktops[current]);
 }
 
-void shiftwindow(struct Arg arg) {
-	Client *c;
-
-	c = desktops[current].current;
-	if (!c) return;
-
-	if (arg.i > 0 && c->next) {
-		removeclient(c, &desktops[current]);
-		addclient(c, c->next, &desktops[current]);
-	} else if (arg.i < 0 && c->prev) {
-		removeclient(c, &desktops[current]);
-		addclient(c, c->prev->prev, &desktops[current]);
-	}
-}
-
 void addwindow(Window w, Desktop *d) {
 	int i, mi;
 	int modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask };
@@ -581,7 +577,7 @@ void addwindow(Window w, Desktop *d) {
 	c->b = True;
 	c->full_width = False;
 	c->full_height = False;
-	updateclient(c);
+	updateclientdata(c);
 
 	if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry,
 				&dont_care, &dont_care, &v)) {
@@ -605,7 +601,9 @@ void addwindow(Window w, Desktop *d) {
 	if (c->y + c->h > dh)
 		c->y = dh - c->h - BORDER_WIDTH * 2 - 1;
 
-	addclient(c, lastclient(d), d);
+	addclient(c, d->current, d);
+	updateclientwin(c);
+	focus(c, d);
 }
 
 void addclient(Client *n, Client *a, Desktop *d) {
@@ -627,8 +625,7 @@ void addclient(Client *n, Client *a, Desktop *d) {
 		a->next = n;
 	}
 
-	layout(d);
-	focus(n, d);
+	updateclientwin(n);
 }
 
 Client *lastclient(Desktop *d) {
@@ -700,7 +697,7 @@ int keypressed(XKeyEvent ke, Key *map) {
 	return True;
 }
 
-void exitsubmap(struct Arg arg) {}
+void exitsubmap(Arg arg) {}
 
 int iskeymod(KeySym keysym) {
 	int i;
@@ -734,11 +731,11 @@ void listensubmap(Key *map, int sticky) {
 	XUngrabKeyboard(dis, CurrentTime);
 }
 
-void submap(struct Arg arg) {
+void submap(Arg arg) {
 	listensubmap(arg.map, False);
 }
 
-void stickysubmap(struct Arg arg) {
+void stickysubmap(Arg arg) {
 	listensubmap(arg.map, True);
 }
 
@@ -773,6 +770,7 @@ void mousemotion(int t) {
 				None, None, CurrentTime) != GrabSuccess) return;
 
 	clienttotop(c, d);
+	c->full_width = c->full_height = False;
 
 	do {
 		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask
@@ -782,14 +780,14 @@ void mousemotion(int t) {
 			yh = (t == MOVE ? wa.y:wa.height) + ev.xmotion.y - ry;
 			if (t == RESIZE) 
 				XResizeWindow(dis, c->win, 
-						xw > 0 ? xw : 5, yh > 0 ? yh : 5);
+						xw > MIN ? xw : MIN, yh > MIN ? yh : MIN);
 			else if (t == MOVE) XMoveWindow(dis, c->win, xw, yh);
 		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
 			events[ev.type](&ev);
 	} while (ev.type != ButtonRelease);
 
 	XUngrabPointer(dis, CurrentTime);
-	updateclient(c);
+	updateclientdata(c);
 }
 
 void maprequest(XEvent *e) {
@@ -800,6 +798,7 @@ void maprequest(XEvent *e) {
 	if (!wintoclient(ev->window, &c, &d)) {
 		XMapWindow(dis, ev->window);
 		addwindow(ev->window, &desktops[current]);
+		layout(&desktops[current]);
 	} else {
 		fprintf(stderr, "window I already have wants to be mapped, it can fuck off\n");
 	}
@@ -838,22 +837,17 @@ void configurerequest(XEvent *e) {
 	Client *c; Desktop *d; Monitor *m;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	if (wintoclient(ev->window, &c, &d)) {
+		fprintf(stderr, "got win\n");
+		return;
 		c->x = ev->x;
 		c->y = ev->y;
 		c->w = ev->width;
 		c->h = ev->height;
 		m = monitorholdingclient(c);
-		if (ev->detail == Above) {
+		if (ev->detail == Above) 
 			clienttotop(c, d);
-		} else if (ev->detail == Below) {
-			removeclient(c, d);
-			addclient(c, NULL, d);
-		}
-
-		if (d == &desktops[current]) {
-			layout(d);
-			focus(c, d);
-		}
+		else if (ev->detail == Below)
+			clienttobottom(c, d);
 	}
 }
 
@@ -895,12 +889,12 @@ int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
 			ee->request_code, ee->error_code);
 }
 
-void killclient(struct Arg arg) {
+void killclient(Arg arg) {
 	if (desktops[current].current) 
 		sendkillsignal(desktops[current].current->win);
 }
 
-void spawn(struct Arg arg) {
+void spawn(Arg arg) {
 	if (fork() == 0) {
 		if (fork() == 0) {
 			if(dis)

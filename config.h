@@ -30,6 +30,9 @@
 #define FOCUS			"#ffffff"
 #define UNFOCUS			"#666666"
 
+// Min window width/height
+#define MIN	            20
+
 char* menucmd[]     = {"selectexec", NULL};
 char* wincmd[]      = {"selectwindow", NULL};
 char* termcmd[]     = {"st", "-e", "tmux", NULL};
@@ -51,9 +54,8 @@ static struct Key mainmap[] = {
 	{ ShiftMask,            XK_o,      shiftfocus,     {.i = -1}},
 	{ 0,                    XK_i,      focusprev,      {NULL}},
 
-	{ 0,                    XK_n,      shiftwindow,    {.i = 1}},
-	{ 0,                    XK_p,      shiftwindow,    {.i = -1}},
-	{ 0,                    XK_space,  bringtotop,     {NULL}},
+	{ 0,                    XK_p,      pushtobottom,   {NULL}},
+	{ 0,                    XK_n,      bringtotop,     {NULL}},
 
 	{ 0,                    XK_equal,  fullheight,     {NULL}},
 	{ ShiftMask,            XK_equal,  fullwidth,      {NULL}},
