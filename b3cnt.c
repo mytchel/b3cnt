@@ -106,8 +106,11 @@ static void toggleborder();
 static void mousemove();
 static void mouseresize();
 
+/* Listens for keys in a submap. arg.map is the map. Stays in map until exited
+ * if arg.i is non zero.
+ */
 static void submap(Arg arg);
-static void stickysubmap(Arg arg);
+/* Special function to exit submaps. Does nothing else. */
 static void exitsubmap();
 
 static void spawn(Arg arg);
@@ -150,7 +153,6 @@ static void mousemotion(int t);
 static void grabkeys();
 static int keypressed(XKeyEvent ke, Key *map);
 static int iskeymod(KeySym keysym);
-static void listensubmap(Key *map, int sticky);
 
 static void destroynotify(XEvent *e);
 static void maprequest(XEvent *e);
@@ -708,7 +710,8 @@ int iskeymod(KeySym keysym) {
 	return False;
 }
 
-void listensubmap(Key *map, int sticky) {
+void submap(Arg arg) {
+	Key *map = arg.map;
 	XEvent ev;
 	KeySym keysym;
 
@@ -722,21 +725,13 @@ void listensubmap(Key *map, int sticky) {
 
 			if (iskeymod(keysym)) continue;
 
-			if (!keypressed(ev.xkey, map) || !sticky)
+			if (!keypressed(ev.xkey, map) || !arg.i)
 				break;
 		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
 			events[ev.type](&ev);
 	}
 
 	XUngrabKeyboard(dis, CurrentTime);
-}
-
-void submap(Arg arg) {
-	listensubmap(arg.map, False);
-}
-
-void stickysubmap(Arg arg) {
-	listensubmap(arg.map, True);
 }
 
 void mousemove() {
@@ -748,7 +743,7 @@ void mouseresize() {
 }
 
 void mousemotion(int t) {
-	int rx, ry, dc, xw, yh, v;
+	int rx, ry, dc, xw, yh, v, bw;
 	Window w, wr;
 	XWindowAttributes wa;
 	XEvent ev;
@@ -771,13 +766,14 @@ void mousemotion(int t) {
 
 	clienttotop(c, d);
 	c->full_width = c->full_height = False;
+	bw = c->b ? BORDER_WIDTH * 2 : 0;
 
 	do {
 		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask|PointerMotionMask
 				|SubstructureRedirectMask, &ev);
 		if (ev.type == MotionNotify) {
-			xw = (t == MOVE ? wa.x:wa.width) + ev.xmotion.x - rx;
-			yh = (t == MOVE ? wa.y:wa.height) + ev.xmotion.y - ry;
+			xw = (t == MOVE ? wa.x : wa.width - bw) + ev.xmotion.x - rx;
+			yh = (t == MOVE ? wa.y : wa.height - bw) + ev.xmotion.y - ry;
 			if (t == RESIZE) 
 				XResizeWindow(dis, c->win, 
 						xw > MIN ? xw : MIN, yh > MIN ? yh : MIN);

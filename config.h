@@ -74,7 +74,7 @@ static struct Key mainmap[] = {
 };
 
 static struct Key keys[] = {
-	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap}},
+	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
 	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {.i = 0}},
 
 	{ Mod1Mask|ControlMask,	XK_Return,      spawn,          {.com = termcmd}}, 
