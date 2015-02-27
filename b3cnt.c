@@ -283,11 +283,12 @@ void updatemonitors() {
 			for (m = monitors; m && m->next; m = m->next); // Go to last Monitor
 			for (i = mcount; i < count; i++) {
 				new = malloc(sizeof(Monitor));
-				if (!monitors) monitors = new;
 				new->prev = m;
 				new->next = NULL;
-				if (m)
+				if (m) 
 					m->next = new;
+				else 
+					monitors = m = new;
 				m = new;
 			}
 		} else if (count < mcount) {
