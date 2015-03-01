@@ -389,6 +389,16 @@ void focus(Client *c, Desktop *d) {
 		d->current = c;
 	}
 
+#if FOCUS_ON_ENTER == 0
+	for (t = d->head; t; t = t->next) {
+		if (t == d->current)
+			XUngrabButton(dis, FOCUS_BUTTON, 0, t->win);
+		else
+			XGrabButton(dis, FOCUS_BUTTON, 0, t->win, False, ButtonPressMask,
+					GrabModeAsync, GrabModeAsync, None, None);
+	}
+#endif
+
 	if (d->current) {
 		XSetWindowBorder(dis, d->current->win, win_focus);
 		XSetInputFocus(dis, d->current->win, RevertToPointerRoot, CurrentTime);
@@ -604,7 +614,7 @@ void addwindow(Window w, Desktop *d) {
 	if (c->y + c->h > dh)
 		c->y = dh - c->h - BORDER_WIDTH * 2 - 1;
 
-	addclient(c, d->current, d);
+	addclient(c, lastclient(d), d);
 	updateclientwin(c);
 	focus(c, d);
 }
@@ -824,9 +834,11 @@ void destroynotify(XEvent *e) {
 }
 
 void enternotify(XEvent *e) {
+#if FOCUS_ON_ENTER
 	Client *c; Desktop *d;
 	if (wintoclient(e->xcrossing.window, &c, &d)) 
 		focus(c, d); 
+#endif
 }
 
 void configurerequest(XEvent *e) {
@@ -854,10 +866,16 @@ void keypress(XEvent *e) {
 
 void buttonpress(XEvent *e) {
 	int i;
+	XButtonEvent *ev = &e->xbutton;	
+	Client *c; Desktop *d;
+
+	if (wintoclient(ev->window, &c, &d))
+		focus(c, d);
+
 	for (i = 0; i < LEN(buttons); i++) {
-		if (CLEANMASK(buttons[i].mask) == CLEANMASK(e->xbutton.state) &&
-				buttons[i].function 
-				&& buttons[i].button == e->xbutton.button) {
+		if (buttons[i].function 
+				&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state)
+				&& buttons[i].button == ev->button) {
 			buttons[i].function(buttons[i].arg);
 		}
 	}

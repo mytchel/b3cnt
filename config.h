@@ -22,13 +22,15 @@
  *
  */
 
-// Number of steps to be taken for the animation when changing desktops.
-#define ANIMATION_STEPS 1000
 // The number of desktops.
 #define DESKTOP_NUM		7
 #define BORDER_WIDTH	2
 #define FOCUS			"#ffffff"
 #define UNFOCUS			"#666666"
+
+#define FOCUS_ON_ENTER  0
+// Defines what button is used to focus on windows if FOCUS_ON_ENTER is not set.
+#define FOCUS_BUTTON	Button1
 
 // Min window width/height
 #define MIN	            20
