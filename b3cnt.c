@@ -805,9 +805,6 @@ void maprequest(XEvent *e) {
 	if (!wintoclient(ev->window, &c, &d)) {
 		XMapWindow(dis, ev->window);
 		addwindow(ev->window, &desktops[current]);
-		layout(&desktops[current]);
-	} else {
-		fprintf(stderr, "window I already have wants to be mapped, it can fuck off\n");
 	}
 }
 
@@ -816,10 +813,8 @@ void removewindow(Window w) {
 	if (wintoclient(w, &c, &d)) {
 		removeclient(c, d);
 		free(c);
-		if (&desktops[current] == d) {
-			fprintf(stderr, "removing window from current desktop so will re-layout\n");
+		if (&desktops[current] == d) 
 			layout(d);
-		}
 	}
 }
 
@@ -843,20 +838,26 @@ void enternotify(XEvent *e) {
 
 void configurerequest(XEvent *e) {
 	fprintf(stderr, "configurerequest\n");
-	Client *c; Desktop *d; Monitor *m;
+	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	if (wintoclient(ev->window, &c, &d)) {
 		fprintf(stderr, "got win\n");
-		return;
 		c->x = ev->x;
 		c->y = ev->y;
 		c->w = ev->width;
 		c->h = ev->height;
-		m = monitorholdingclient(c);
 		if (ev->detail == Above) 
 			clienttotop(c, d);
 		else if (ev->detail == Below)
 			clienttobottom(c, d);
+		updateclientwin(c);
+	} else {
+		/* Some windows (mozilla) try to resize themselves before they've been
+		 * mapped so I will have no got hold of them yet. For such windows
+		 * just resize them as wanted.
+		 */
+		XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
+				ev->width, ev->height);
 	}
 }
 
