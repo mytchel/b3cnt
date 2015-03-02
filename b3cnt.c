@@ -348,14 +348,13 @@ void changedesktop(Arg arg) {
 
 	for (c = desktops[current].head; c; c = c->next) 
 		XUnmapWindow(dis, c->win);
-	
-	layout(&desktops[current]);
 
 	// Now ok to listen to events.
 	XChangeWindowAttributes(dis, root, CWEventMask, 
 			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
 	
 	current = arg.i;
+	layout(&desktops[current]);
 }
 
 void clienttodesktop(Arg arg) {
@@ -840,24 +839,17 @@ void configurerequest(XEvent *e) {
 	fprintf(stderr, "configurerequest\n");
 	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
+
+	XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
+			ev->width, ev->height);
+
 	if (wintoclient(ev->window, &c, &d)) {
 		fprintf(stderr, "got win\n");
-		c->x = ev->x;
-		c->y = ev->y;
-		c->w = ev->width;
-		c->h = ev->height;
 		if (ev->detail == Above) 
 			clienttotop(c, d);
 		else if (ev->detail == Below)
 			clienttobottom(c, d);
-		updateclientwin(c);
-	} else {
-		/* Some windows (mozilla) try to resize themselves before they've been
-		 * mapped so I will have no got hold of them yet. For such windows
-		 * just resize them as wanted.
-		 */
-		XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
-				ev->width, ev->height);
+		updateclientdata(c);
 	}
 }
 
