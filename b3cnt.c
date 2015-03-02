@@ -42,6 +42,12 @@
                  | SubstructureNotifyMask
 #define SUBMASK    EnterWindowMask 
 
+#ifdef DEBUG
+void debug(char *msg) {	fprintf(stderr, mesg); }
+#else
+void debug(char *msg) {}
+#endif
+
 enum { RESIZE, MOVE };
 enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
 enum { NET_SUPPORTED, NET_FULLSCREEN, NET_WM_STATE, NET_ACTIVE, NET_COUNT };
@@ -379,7 +385,7 @@ void updateclientdata(Client *c) {
 		return;
 
 	if (!XGetWindowAttributes(dis, c->win, &window_attributes)) {
-		fprintf(stderr, "Failed XGetWindowAttributes!\n");
+		debug("Failed XGetWindowAttributes!\n");
 		return;
 	}
 
@@ -772,7 +778,7 @@ void submap(Client *c, Desktop *d, Arg arg) {
 }
 
 void maprequest(XEvent *e) {
-	fprintf(stderr, "map\n");
+	debug("map\n");
 	XMapRequestEvent *ev = &e->xmaprequest;
 	Client *c; Desktop *d;
 
@@ -792,12 +798,12 @@ void removewindow(Window w) {
 }
 
 void unmapnotify(XEvent *e) {
-	fprintf(stderr, "unmap\n");
+	debug("unmap\n");
 	removewindow(e->xunmap.window);
 }
 
 void destroynotify(XEvent *e) {
-	fprintf(stderr, "destroy\n");
+	debug("destroy\n");
 	removewindow(e->xdestroywindow.window);
 }
 
@@ -810,7 +816,7 @@ void enternotify(XEvent *e) {
 }
 
 void configurerequest(XEvent *e) {
-	fprintf(stderr, "configurerequest\n");
+	debug("configurerequest\n");
 	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 
@@ -823,7 +829,7 @@ void configurerequest(XEvent *e) {
 		XLowerWindow(dis, ev->window);
 
 	if (wintoclient(ev->window, &c, &d)) {
-		fprintf(stderr, "got win\n");
+		debug("got win\n");
 		if (ev->detail == Above)
 			bringtotop(c, d, junkarg);
 		else if (ev->detail == Below)
@@ -855,7 +861,7 @@ void buttonpress(XEvent *e) {
 }
 
 void mappingnotify(XEvent *e) {
-	fprintf(stderr, "Mapping notify!\n");
+	debug("Mapping notify!\n");
 	XMappingEvent *ev = &e->xmapping;
 
 	XRefreshKeyboardMapping(ev);

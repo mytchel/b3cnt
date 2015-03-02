@@ -22,6 +22,9 @@
  *
  */
 
+// If you want debug messages then define DEBUG
+// #define DEBUG
+
 // The number of desktops.
 #define DESKTOP_NUM		7
 #define BORDER_WIDTH	2

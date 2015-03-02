@@ -9,9 +9,9 @@ both love and hate.
 Installation
 ------------
 
-    $ vim config.h # And change to your liking.
+    $ vim config.h # Read and edit to your liking.
     $ make
-    $ make install
+	# make install # To install to /usr/local/bin/b3cnt-floating
 
 If you have some particular request, just send me an e-mail, and I will possibly
 do something about it.
