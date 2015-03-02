@@ -653,11 +653,14 @@ void removeclient(Client *c, Desktop *d) {
 		d->head = c->next;
 
 	if (d->current == c) {
-		if (c->prev)
+		if (d->old) 
+			d->current = d->old;
+		else if (c->prev)
 			d->current = c->prev;
 		else
-			d->current = d->head;
-		d->old = d->current;
+			d->current = c->next;
+		
+		d->old = NULL;
 	}
 
 	if (c->prev)
