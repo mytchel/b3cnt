@@ -22,8 +22,10 @@
  *
  */
 
-// If you want debug messages then define DEBUG
-// #define DEBUG
+void debug(char *msg) {
+	// Comment out the next line if you don't want debug messages.
+	fprintf(stderr, msg); 
+}
 
 // The number of desktops.
 #define DESKTOP_NUM		7

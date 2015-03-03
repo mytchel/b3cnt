@@ -42,12 +42,6 @@
                  | SubstructureNotifyMask
 #define SUBMASK    EnterWindowMask 
 
-#ifdef DEBUG
-void debug(char *msg) {	fprintf(stderr, mesg); }
-#else
-void debug(char *msg) {}
-#endif
-
 enum { RESIZE, MOVE };
 enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
 enum { NET_SUPPORTED, NET_FULLSCREEN, NET_WM_STATE, NET_ACTIVE, NET_COUNT };
@@ -876,7 +870,6 @@ int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
 				&& (ee->request_code == X_SetInputFocus
 					||	ee->request_code == X_ConfigureWindow))
 			|| (ee->error_code == BadWindow)) {
-		focus(desktops[current].current, &desktops[current]);
 		return 0;
 	}
 	err(EXIT_FAILURE, "XError: request: %d code %d", 
