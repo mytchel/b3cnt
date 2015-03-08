@@ -133,7 +133,6 @@ static void sigchld(int unused);
 static Monitor *monitorholdingclient(Client *c);
 static int wintoclient(Window w, Client **c, Desktop **d);
 
-static void layout(Desktop *d);
 static void focus(Client *c, Desktop *d);
 
 static void addwindow(Window w, Desktop *d);
@@ -322,7 +321,7 @@ void updatemonitors() {
 			m->y = info[i].y_org;
 		}
 
-		layout(&desktops[current]);
+		focus(desktops[current].current, &desktops[current]);
 
 		XFree(info);
 	}
@@ -360,16 +359,6 @@ void focus(Client *c, Desktop *d) {
 		XSetWindowBorder(dis, d->current->win, win_focus);
 		XSetInputFocus(dis, d->current->win, RevertToPointerRoot, CurrentTime);
 	}
-}
-
-void layout(Desktop *d) {
-	Client *c;
-	for (c = d->head; c; c = c->next) {
-		XRaiseWindow(dis, c->win);
-		updateclientwin(c);
-	}
-
-	focus(d->current, d);
 }
 
 void updateclientdata(Client *c) {
@@ -456,7 +445,7 @@ void changedesktop(Client *c, Desktop *d, Arg arg) {
 			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
 	
 	current = arg.i;
-	layout(&desktops[current]);
+	focus(desktops[current].current, &desktops[current]);
 }
 
 void clienttodesktop(Client *c, Desktop *d, Arg arg) {
@@ -464,7 +453,7 @@ void clienttodesktop(Client *c, Desktop *d, Arg arg) {
 	removeclient(c, d);
 	changedesktop(NULL, NULL, arg);
 	addclient(c, lastclient(&desktops[current]), &desktops[current]);
-	layout(&desktops[current]);
+	XRaiseWindow(dis, c->win);
 	focus(c, &desktops[current]);
 }
 
@@ -783,12 +772,13 @@ void maprequest(XEvent *e) {
 }
 
 void removewindow(Window w) {
-	Client *c; Desktop *d;
+	Client *c; Desktop *d; int f = 0;
 	if (wintoclient(w, &c, &d)) {
+		if (c == desktops[current].current) f = 1;
 		removeclient(c, d);
 		free(c);
-		if (&desktops[current] == d) 
-			layout(d);
+		if (f)
+			focus(desktops[current].current, &desktops[current]);
 	}
 }
 

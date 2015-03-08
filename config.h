@@ -46,7 +46,6 @@ char* termcmd[]     = {"st", "-e", "tmux", NULL};
 char* batterycmd[]  = {"showbattery", NULL};
 char* timecmd[]     = {"showtime", NULL};
 char* lockcmd[]     = {"lock", NULL};
-char* pausecmd[]    = {"mmusicd", "pause", NULL};
 char* alsacmd[]     = {"st", "-e", "alsamixer", NULL};
 
 // You will need this at the end of key arrays.
@@ -82,7 +81,8 @@ static struct Key mainmap[] = {
 
 static struct Key keys[] = {
 	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
-	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {.i = 0}},
+
+	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {NULL}},
 
 	{ Mod1Mask|ControlMask,	XK_Return,      spawn,          {.com = termcmd}}, 
 	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
