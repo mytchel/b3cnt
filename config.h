@@ -40,20 +40,18 @@ void debug(char *msg) {
 // Min window width/height
 #define MIN	            20
 
-char* menucmd[]     = {"selectexec", NULL};
-char* wincmd[]      = {"selectwindow", NULL};
+char* menucmd[]     = {"nexec", NULL};
+char* wincmd[]      = {"nwindow", NULL};
 char* termcmd[]     = {"st", "-e", "tmux", NULL};
-char* batterycmd[]  = {"showbattery", NULL};
-char* timecmd[]     = {"showtime", NULL};
-char* lockcmd[]     = {"lock", NULL};
-char* alsacmd[]     = {"st", "-e", "alsamixer", NULL};
+char* batterycmd[]  = {"nbatt", NULL};
+char* timecmd[]     = {"ntime", NULL};
 
 // You will need this at the end of key arrays.
 #define END {0,0,NULL,{NULL}}
 
 #define DESKTOP(key, num) \
-{ Mod1Mask, key, changedesktop, {.i = num}}, \
-{ Mod1Mask|ControlMask, key, clienttodesktop, {.i = num}}
+{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
+{ Mod1Mask|ShiftMask, key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
 	{ 0,                    XK_o,      shiftfocus,     {.i = 1}},
@@ -71,9 +69,7 @@ static struct Key mainmap[] = {
 	{ 0,                    XK_t,      spawn,          {.com = timecmd}},
 	{ 0,                    XK_b,      spawn,          {.com = batterycmd}},
 
-	{ 0,                    XK_s,      spawn,          {.com = alsacmd}},
-
-	{0,                     XK_Escape, exitsubmap,	   {NULL}},
+	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
 	{ControlMask,			XK_g,      exitsubmap,     {NULL}},
 
 	END
@@ -89,7 +85,6 @@ static struct Key keys[] = {
 
 	{ Mod1Mask|ControlMask,	XK_x,           killclient,     {NULL}},
 
-	{ Mod1Mask|ShiftMask,   XK_space,       spawn,          {.com = lockcmd}},
 	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
 
 	DESKTOP(XK_1, 0),

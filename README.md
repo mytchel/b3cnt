@@ -6,6 +6,9 @@ of [b3cnt](https://github.com/mytch444/b3cnt) and will have most of the
 functions that it has, but will be more like cwm that I have recently come to
 both love and hate.
 
+Good in conjunction with [nenu](https://github.com/mytch444/nenu), lsw from 
+suckless and wmutils.
+
 Installation
 ------------
 
