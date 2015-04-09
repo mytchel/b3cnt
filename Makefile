@@ -1,24 +1,19 @@
-CFLAGS+= -Wall
-LDADD+= -lX11 -lXinerama
-EXEC=b3cnt-floating
-FILES=b3cnt.c config.h
-BINDIR?= /usr/local/bin
+DESTDIR?=
+PREFIX?=/usr
 
-CC=gcc
+all: b3cnt-floating
 
-all: $(EXEC)
+b3cnt-floating: b3cnt.c config.h
+	gcc -o b3cnt-floating b3cnt.c -lX11 -lXinerama
 
-$(EXEC): b3cnt.o
-	$(CC) $(LDADD) b3cnt.o -o $(EXEC)
-
-b3cnt.o: $(FILES)
-	$(CC) -c b3cnt.c
-
+.PHONY:
 install: all
-	install -Dm 755 $(EXEC) $(BINDIR)/$(EXEC)
+	install -Dm 755 b3cnt-floating ${DESTDIR}${PREFIX}/bin/b3cnt-floating
 
+.PHONY:
 uninstall: 
-	rm $(BINDIR)/$(EXEC)
+	rm ${DESTDIR}${PREFIX}/bin/b3cnt-floating
 
+.PHONY:
 clean:
-	rm -f $(EXEC) *.o
+	rm -f b3cnt-floating

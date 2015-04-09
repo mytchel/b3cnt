@@ -1,6 +1,5 @@
 /*
  *	Copyright (c) 2014, Mytchel Hammond, mytchel at openmailbox dot org
- *	Copyright (c) 2010, Rinaldini Julien, julien.rinaldini@heig-vd.ch
  *
  *	Permission is hereby granted, free of charge, to any person obtaining a
  *	copy of this software and associated documentation files (the "Software"),
@@ -28,23 +27,31 @@ void debug(char *msg) {
 }
 
 // The number of desktops.
-#define DESKTOP_NUM		7
+#define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
-#define FOCUS			"#ffffff"
-#define UNFOCUS			"#666666"
+#define FOCUS		"#ffffff"
+#define UNFOCUS		"#666666"
 
-#define FOCUS_ON_ENTER  0
-// Defines what button is used to focus on windows if FOCUS_ON_ENTER is not set.
+#define FOCUS_ON_ENTER	0
+// Defines what button is used to focus on windows if FOCUS_ON_ENTER is set to
+// 0.
 #define FOCUS_BUTTON	Button1
 
 // Min window width/height
-#define MIN	            20
+#define MIN		20
 
-char* menucmd[]     = {"nexec", NULL};
-char* wincmd[]      = {"nwindow", NULL};
-char* termcmd[]     = {"st", "-e", "tmux", NULL};
-char* batterycmd[]  = {"nbatt", NULL};
-char* timecmd[]     = {"ntime", NULL};
+char *termcmd[]		= {"st", "-e", "tmux", NULL};
+/* scripts from nenu */
+char *menucmd[]		= {"nexec", NULL};
+char *wincmd[]		= {"nwindow", NULL};
+char *batterycmd[]	= {"nbatt", NULL};
+char *timecmd[]		= {"ntime", NULL};
+
+char *lightin[]		= {"xbacklight", "-inc", "10", NULL};
+char *lightde[]		= {"xbacklight", "-dec", "10", NULL};
+char *mute[]		= {"amixer", "set", "Master", "toggle", NULL};
+char *volup[]		= {"amixer", "set", "Master", "5%+", NULL};
+char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
 
 // You will need this at the end of key arrays.
 #define END {0,0,NULL,{NULL}}
@@ -70,7 +77,7 @@ static struct Key mainmap[] = {
 	{ 0,                    XK_b,      spawn,          {.com = batterycmd}},
 
 	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
-	{ControlMask,			XK_g,      exitsubmap,     {NULL}},
+	{ControlMask,           XK_g,      exitsubmap,     {NULL}},
 
 	END
 };
@@ -78,7 +85,7 @@ static struct Key mainmap[] = {
 static struct Key keys[] = {
 	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
 
-	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {NULL}},
+//	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {NULL}},
 
 	{ Mod1Mask|ControlMask,	XK_Return,      spawn,          {.com = termcmd}}, 
 	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
@@ -86,6 +93,12 @@ static struct Key keys[] = {
 	{ Mod1Mask|ControlMask,	XK_x,           killclient,     {NULL}},
 
 	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
+
+	{ Mod1Mask,             XK_F1,          spawn,          {.com = mute}},
+	{ Mod1Mask,             XK_F2,          spawn,          {.com = voldown}},
+	{ Mod1Mask,             XK_F3,          spawn,          {.com = volup}},
+	{ Mod1Mask,             XK_F5,          spawn,          {.com = lightde}},
+	{ Mod1Mask,             XK_F6,          spawn,          {.com = lightin}},
 
 	DESKTOP(XK_1, 0),
 	DESKTOP(XK_2, 1),
@@ -95,7 +108,7 @@ static struct Key keys[] = {
 	DESKTOP(XK_6, 5),
 	DESKTOP(XK_7, 6),
 
-	{ Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,           {NULL}},
+	{ Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,          {NULL}},
 
 	END
 };
