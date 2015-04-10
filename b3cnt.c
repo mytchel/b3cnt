@@ -363,7 +363,8 @@ void updateclientwin(Client *c) {
 		c == desktops[current].current ? win_focus : win_unfocus);
 
 	monitorholdingclient(c, &x, &y, &w, &h);
-
+	w -= b;
+	h -= b;
 	if (!c->full_height) { y = c->y; h = c->h;}
 	if (!c->full_width) { x = c->x; w = c->w;}
 
