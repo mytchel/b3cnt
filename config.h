@@ -32,9 +32,6 @@ void debug(char *msg) {
 #define FOCUS		"#ffffff"
 #define UNFOCUS		"#666666"
 
-#define FOCUS_ON_ENTER	0
-// Defines what button is used to focus on windows if FOCUS_ON_ENTER is set to
-// 0.
 #define FOCUS_BUTTON	Button1
 
 // Min window width/height

@@ -133,7 +133,6 @@ static int iskeymod(KeySym keysym);
 static void destroynotify(XEvent *e);
 static void maprequest(XEvent *e);
 static void unmapnotify(XEvent *e);
-static void enternotify(XEvent *e);
 static void keypress(XEvent *e);
 static void buttonpress(XEvent *e);
 static void configurerequest(XEvent *e);
@@ -154,7 +153,6 @@ static void (*events[LASTEvent])(XEvent *e) = {
 	[ConfigureRequest]   = configurerequest,
 	[KeyPress]           = keypress,
 	[ButtonPress]        = buttonpress,
-	[EnterNotify]        = enternotify,
 	[MappingNotify]      = mappingnotify,
 };
 
@@ -309,6 +307,7 @@ void focus(Client *c, Desktop *d) {
 		Arg arg;
 		arg.i = i;
 		changedesktop(NULL, NULL, arg);
+		return;
 	}
 
 	if (d->current != c) {
@@ -318,30 +317,24 @@ void focus(Client *c, Desktop *d) {
 		d->current = c;
 	}
 
-#if FOCUS_ON_ENTER == 0
-	debug("grabbing button\n");
-	for (t = d->head; t; t = t->next) {
-		if (t == d->current)
-			XUngrabButton(dis, FOCUS_BUTTON, 0, t->win);
-		else
+	for (t = d->head; t; t = t->next) 
+		if (t != c)
 			XGrabButton(dis, FOCUS_BUTTON, 0, t->win, False, 
 				ButtonPressMask, GrabModeAsync, GrabModeAsync, 
 				None, None);
-	}
-#endif
 
-	if (d->current) {
-		XSetWindowBorder(dis, d->current->win, win_focus);
-		XSetInputFocus(dis, d->current->win, RevertToPointerRoot, 
+	if (c) {
+		XSetWindowBorder(dis, c->win, win_focus);
+		XSetInputFocus(dis, c->win, RevertToPointerRoot, 
 			CurrentTime);
+		XUngrabButton(dis, FOCUS_BUTTON, 0, c->win);
 	}
 }
 
 void updateclientdata(Client *c) {
 	XWindowAttributes window_attributes;
 
-	if (!c)
-		return;
+	if (!c) return;
 
 	if (!XGetWindowAttributes(dis, c->win, &window_attributes)) {
 		debug("Failed XGetWindowAttributes!\n");
@@ -663,7 +656,7 @@ int wintoclient(Window w, Client **c, Desktop **d) {
 	int i;
 
 	for (i = 0; i < DESKTOP_NUM; i++) {
-		(*d) = &desktops[i];
+		*d = &desktops[i];
 		for (*c = (*d)->head; *c; *c = (*c)->next) {
 			if ((*c)->win == w)
 				return True;
@@ -752,30 +745,26 @@ void removewindow(Window w) {
 	Client *c; Desktop *d; int f = 0;
 	if (wintoclient(w, &c, &d)) {
 		debug("removing window\n");
-		if (c == desktops[current].current) f = 1;
+		if (d == &desktops[current]) f = 1;
 		removeclient(c, d);
 		free(c);
-		if (f)
+		if (f) {
+			debug("removed window in current desktop, refocusing\n");
 			focus(desktops[current].current, &desktops[current]);
+		}
 	}
 }
 
 void unmapnotify(XEvent *e) {
 	debug("unmap\n");
 	removewindow(e->xunmap.window);
+	debug("unmap maybe removed window\n");
 }
 
 void destroynotify(XEvent *e) {
 	debug("destroy\n");
 	removewindow(e->xdestroywindow.window);
-}
-
-void enternotify(XEvent *e) {
-#if FOCUS_ON_ENTER
-	Client *c; Desktop *d;
-	if (wintoclient(e->xcrossing.window, &c, &d)) 
-		focus(c, d); 
-#endif
+	debug("destroy maybe removed window\n");
 }
 
 void configurerequest(XEvent *e) {
@@ -835,18 +824,8 @@ void mappingnotify(XEvent *e) {
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
-	if ((ee->error_code == BadAccess 
-		&& (ee->request_code == X_GrabKey
-			|| ee->request_code == X_GrabButton))
-		|| (ee->error_code == BadMatch 
-			&& (ee->request_code == X_SetInputFocus
-			|| ee->request_code == X_ConfigureWindow))
-		|| (ee->error_code == BadWindow)) {
-		fprintf(stderr, "ERROR RECOVERABLE, I THINK\n");
-		return 0;
-	}
-	err(EXIT_FAILURE, "XError: request: %d code %d", 
-			ee->request_code, ee->error_code);
+	fprintf(stderr, "XError: request %d code %d\n",
+		ee->request_code, ee->error_code);
 }
 
 void killclient(Client *c, Desktop *d, Arg arg) {
@@ -869,12 +848,12 @@ void spawn(Client *c, Desktop *d, Arg arg) {
 int main(int argc, char **argv) {
 	XEvent ev; 
 
-	if(!(dis = XOpenDisplay(NULL)))
+	if (!(dis = XOpenDisplay(NULL)))
 		die("Cannot open display!");
 
 	setup();
 
-	while(!bool_quit && !XNextEvent(dis,&ev))
+	while (!bool_quit && !XNextEvent(dis, &ev))
 		if(events[ev.type])
 			events[ev.type](&ev);
 
