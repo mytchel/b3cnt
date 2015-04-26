@@ -29,10 +29,8 @@ void debug(char *msg) {
 // The number of desktops.
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
-#define FOCUS		"#ffffff"
-#define UNFOCUS		"#666666"
-
-#define FOCUS_BUTTON	Button1
+#define FOCUS		"#eeeeee"
+#define UNFOCUS		"#777777"
 
 // Min window width/height
 #define MIN		20

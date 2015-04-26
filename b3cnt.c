@@ -317,17 +317,17 @@ void focus(Client *c, Desktop *d) {
 		d->current = c;
 	}
 
-	for (t = d->head; t; t = t->next) 
+	for (t = d->head; t; t = t->next)
 		if (t != c)
-			XGrabButton(dis, FOCUS_BUTTON, 0, t->win, False, 
-				ButtonPressMask, GrabModeAsync, GrabModeAsync, 
-				None, None);
+			XGrabButton(dis, AnyButton, 0, t->win, False, 
+			       ButtonPressMask, GrabModeAsync, 
+			       GrabModeAsync, None, None);
 
 	if (c) {
 		XSetWindowBorder(dis, c->win, win_focus);
 		XSetInputFocus(dis, c->win, RevertToPointerRoot, 
 			CurrentTime);
-		XUngrabButton(dis, FOCUS_BUTTON, 0, c->win);
+		XUngrabButton(dis, AnyButton, 0, c->win);
 	}
 }
 
