@@ -1,23 +1,23 @@
 /*
- *	Copyright (c) 2014, Mytchel Hammond, mytchel at openmailbox dot org
+ * Copyright (c) 2014, Mytchel Hammond, mytchel at openmailbox dot org
  *
- *	Permission is hereby granted, free of charge, to any person obtaining a
- *	copy of this software and associated documentation files (the "Software"),
- *	to deal in the Software without restriction, including without limitation
- *	the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *	and/or sell copies of the Software, and to permit persons to whom the
- *	Software is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
- *	The above copyright notice and this permission notice shall be included in
- *	all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
  *
- *	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *	IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- *	THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- *	FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- *	DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  *
  */
 
@@ -29,11 +29,11 @@ void debug(char *msg) {
 // The number of desktops.
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
-#define FOCUS		"#eeeeee"
-#define UNFOCUS		"#777777"
+#define FOCUS		"#333333"
+#define UNFOCUS		"#999999"
 
 // Min window width/height
-#define MIN		20
+#define MIN		100
 
 char *termcmd[]		= {"st", "-e", "tmux", NULL};
 /* scripts from nenu */
@@ -47,9 +47,6 @@ char *lightde[]		= {"xbacklight", "-dec", "10", NULL};
 char *mute[]		= {"amixer", "set", "Master", "toggle", NULL};
 char *volup[]		= {"amixer", "set", "Master", "5%+", NULL};
 char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
-
-// You will need this at the end of key arrays.
-#define END {0,0,NULL,{NULL}}
 
 #define DESKTOP(key, num) \
 { Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
@@ -73,14 +70,12 @@ static struct Key mainmap[] = {
 
 	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
 	{ControlMask,           XK_g,      exitsubmap,     {NULL}},
-
-	END
+	
+	{},
 };
 
 static struct Key keys[] = {
 	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
-
-//	{ Mod1Mask|ShiftMask,   XK_backslash,   updatemonitors, {NULL}},
 
 	{ Mod1Mask|ControlMask,	XK_Return,      spawn,          {.com = termcmd}}, 
 	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
@@ -104,14 +99,15 @@ static struct Key keys[] = {
 	DESKTOP(XK_7, 6),
 
 	{ Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,          {NULL}},
-
-	END
+	
+	{}
 };
 
 static struct Button buttons[] = {
 	{ Mod1Mask,         Button1,    mousemove,      {NULL}},
 	{ Mod1Mask,         Button2,    spawn,          {.com = wincmd}},
 	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
+	{}
 };
 
 

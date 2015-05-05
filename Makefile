@@ -6,7 +6,7 @@ CC?=cc
 all: b3cnt-floating
 
 b3cnt-floating: b3cnt.c config.h
-	${CC} -o b3cnt-floating b3cnt.c -lX11 -lXinerama
+	${CC} -Wall -o $@ $< -lX11 -lXinerama
 
 .PHONY:
 install: all

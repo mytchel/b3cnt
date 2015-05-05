@@ -1,23 +1,23 @@
 /*
- *	Copyright (c) 2015, Mytchel Hammond, mytchel at openmailbox dot org
+ * Copyright (c) 2015, Mytchel Hammond, mytchel at openmailbox dot org
  *
- *	Permission is hereby granted, free of charge, to any person obtaining a
- *	copy of this software and associated documentation files (the "Software"),
- *	to deal in the Software without restriction, including without limitation
- *	the rights to use, copy, modify, merge, publish, distribute, sublicense,
- *	and/or sell copies of the Software, and to permit persons to whom the
- *	Software is furnished to do so, subject to the following conditions:
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
  *
- *	The above copyright notice and this permission notice shall be included
- *	in all copies or substantial portions of the Software.
+ * The above copyright notice and this permission notice shall be included
+ * in all copies or substantial portions of the Software.
  *
- *	THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- *	OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- *	FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- *	THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- *	LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- *	FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
- *	DEALINGS IN THE SOFTWARE.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+ * DEALINGS IN THE SOFTWARE.
  *
  */
 
@@ -30,6 +30,7 @@
 #include <X11/Xutil.h>
 #include <X11/keysym.h>
 #include <X11/extensions/Xinerama.h>
+#include <X11/extensions/Xrandr.h>
 #include <X11/Xatom.h>
 #include <X11/Xproto.h>
 #include <X11/XF86keysym.h>
@@ -136,7 +137,7 @@ static void unmapnotify(XEvent *e);
 static void keypress(XEvent *e);
 static void buttonpress(XEvent *e);
 static void configurerequest(XEvent *e);
-static void mappingnotify(XEvent *e);
+static void clientmessage(XEvent *e);
 static int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee);
 
 static Display *dis;
@@ -146,6 +147,9 @@ static unsigned int win_unfocus, win_focus;
 static Desktop desktops[DESKTOP_NUM];
 static int current;
 
+static Atom wmatoms[WM_COUNT], netatoms[NET_COUNT];
+static int modifiers[] = {0, LockMask, 0, LockMask };
+	
 static void (*events[LASTEvent])(XEvent *e) = {
 	[MapRequest]         = maprequest,
 	[UnmapNotify]        = unmapnotify,
@@ -153,11 +157,11 @@ static void (*events[LASTEvent])(XEvent *e) = {
 	[ConfigureRequest]   = configurerequest,
 	[KeyPress]           = keypress,
 	[ButtonPress]        = buttonpress,
-	[MappingNotify]      = mappingnotify,
+	[ClientMessage]      = clientmessage,
 };
 
 void setup() {
-	int k, j, i;
+	int k, j;
 	sigchld(0);
 
 	bool_quit = False;
@@ -176,10 +180,24 @@ void setup() {
 				numlockmask = (1 << k);
 	XFreeModifiermap(modmap);
 	
+	modifiers[2] = numlockmask;
+	modifiers[3] |= numlockmask;
+	
+	wmatoms[WM_PROTOCOLS]
+	    = XInternAtom(dis, "WM_PROTOCOLS", False);
+	wmatoms[WM_DELETE_WINDOW] 
+	    = XInternAtom(dis, "WM_DELETE_WINDOW", False);
+	netatoms[NET_SUPPORTED]
+	    = XInternAtom(dis, "_NET_SUPPORTED", False);
+	netatoms[NET_ACTIVE]
+	    = XInternAtom(dis, "_NET_ACTIVE_WINDOW", False);
+
+	XChangeProperty(dis, root, netatoms[NET_SUPPORTED], XA_ATOM, 32,
+	         PropModeReplace, (unsigned char *)netatoms, NET_COUNT);
+
 	XSelectInput(dis, root, ROOTMASK);
 	XSetErrorHandler(xerror);
 
-//	updatemonitors();
 	grabkeys();
 
 	XSync(dis, False);
@@ -198,14 +216,12 @@ void die(char* e) {
 }
 
 void sendkillsignal(Window w) {
-	int n, i;
 	XEvent ke;
-
 	ke.type = ClientMessage;
 	ke.xclient.window = w;
 	ke.xclient.format = 32;
-	ke.xclient.message_type = XInternAtom(dis, "WM_PROTOCOLS", False);
-	ke.xclient.data.l[0]	= XInternAtom(dis, "WM_DELETE_WINDOW", False);
+	ke.xclient.message_type = wmatoms[WM_PROTOCOLS];
+	ke.xclient.data.l[0]    = wmatoms[WM_DELETE_WINDOW];
 	ke.xclient.data.l[1]	= CurrentTime;
 	XSendEvent(dis, w, False, NoEventMask, &ke);
 }
@@ -229,75 +245,6 @@ void quit() {
 			sendkillsignal(c->win);
 }
 
-void updatemonitors() {
-#if 0
-	XineramaScreenInfo *info = NULL;
-	int i, count, mcount = 0;
-	Monitor *m, *new;
-	Client *c; Desktop *d;
-	
-	if (XineramaIsActive(dis)) {
-		for (m = monitors; m; m = m->next)
-			mcount++;
-		
-		if (!(info = XineramaQueryScreens(dis, &count)))
-			die("Error xineramaQueryScreens!");
-
-		if (count < 1) {
-			die("A monitor could help!");
-		} else if (count > mcount) {
-			/* Go to last Monitor */
-			for (m = monitors; m && m->next; m = m->next);
-			for (i = mcount; i < count; i++) {
-				new = malloc(sizeof(Monitor));
-				new->prev = m;
-				new->next = NULL;
-				if (m) 
-					m->next = new;
-				else 
-					monitors = m = new;
-				m = new;
-			}
-		} else if (count < mcount) {
-			/* Just move all Clients to first Monitor for now.
-			 * Later on may make it only move from monitors that are
-			 * no longer there. */
-
-			for (i = 0; i < DESKTOP_NUM; i++) {
-				for (c = desktops[i].head; c; c = c->next) {
-					/* For the sake of simplicity.
-					 * Will change latter. */
-					c->x = 0;
-					c->y = 0;
-					updateclientwin(c);
-				}
-			}
-
-			for (m = monitors, i = 0; m && i < count; m = m->next)
-				 i++;
-			while (m) {
-				new = m;
-				m = new->next;
-				if (new->prev)
-					new->prev->next = NULL;
-				free(new);
-			}
-		}
-
-		for (m = monitors, i = 0; m; m = m->next, i++) {
-			m->w = info[i].width;
-			m->h = info[i].height;
-			m->x = info[i].x_org;
-			m->y = info[i].y_org;
-		}
-
-		focus(desktops[current].current, &desktops[current]);
-
-		XFree(info);
-	}
-#endif
-}
-
 void focus(Client *c, Desktop *d) {
 	Client *t;
 	int i;
@@ -319,15 +266,21 @@ void focus(Client *c, Desktop *d) {
 
 	for (t = d->head; t; t = t->next)
 		if (t != c)
-			XGrabButton(dis, AnyButton, 0, t->win, False, 
-			       ButtonPressMask, GrabModeAsync, 
-			       GrabModeAsync, None, None);
+			for (i = 0; i < LEN(modifiers); i++)
+				XGrabButton(dis, AnyButton, modifiers[i], t->win,
+				       False, ButtonPressMask, GrabModeAsync, 
+				       GrabModeAsync, None, None);
 
 	if (c) {
 		XSetWindowBorder(dis, c->win, win_focus);
 		XSetInputFocus(dis, c->win, RevertToPointerRoot, 
 			CurrentTime);
 		XUngrabButton(dis, AnyButton, 0, c->win);
+    		XChangeProperty(dis, root,
+    		         netatoms[NET_ACTIVE], XA_WINDOW, 32,
+    		         PropModeReplace, (unsigned char *) &c->win, 1);
+	} else {
+		XDeleteProperty(dis, root, netatoms[NET_ACTIVE]);
 	}
 }
 
@@ -396,10 +349,6 @@ void monitorholdingclient(Client *c, int *mx, int *my, int *mw, int *mh) {
 void changedesktop(Client *c, Desktop *d, Arg arg) {
 	if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
 		return;
-
-	/* Update client positions before removing them. */
-	for (c = desktops[current].head; c; c = c->next) 
-		updateclientdata(c);
 
 	for (c = desktops[arg.i].head; c; c = c->next) 
 		XMapWindow(dis, c->win);
@@ -506,7 +455,8 @@ void mouseresize(Client *c, Desktop *d, Arg arg) {
 }
 
 void mousemotion(int t) {
-	int rx, ry, dc, xw, yh, v, bw;
+	int rx, ry, xw, yh, bw, dc;
+	unsigned int v;
 	Window w, wr;
 	XWindowAttributes wa;
 	XEvent ev;
@@ -556,9 +506,9 @@ void mousemotion(int t) {
 
 void addwindow(Window w, Desktop *d) {
 	int i, mi;
-	int modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask };
 	Window win_away; /* Don't care about this. */
-	int rx, ry, dont_care, v;
+	int rx, ry, dont_care;
+	unsigned int v;
 	Client *c;
 	int mx, my, mw, mh;
 
@@ -581,7 +531,7 @@ void addwindow(Window w, Desktop *d) {
 	updateclientdata(c);
 
 	if (XQueryPointer(dis, root, &win_away, &win_away, &rx, &ry,
-				&dont_care, &dont_care, &v)) {
+	                  &dont_care, &dont_care, &v)) {
 		c->x = rx - c->w / 2;
 		c->y = ry - c->h / 2;
 	}
@@ -630,11 +580,11 @@ Client *lastclient(Desktop *d) {
 }
 
 void removeclient(Client *c, Desktop *d) {
-	Client *p;
-
 	if (d->head == c)
 		d->head = c->next;
 
+	if (d->old == c) d->old = NULL;
+	
 	if (d->current == c) {
 		if (d->old) 
 			d->current = d->old;
@@ -668,15 +618,13 @@ int wintoclient(Window w, Client **c, Desktop **d) {
 
 void grabkeys() {
 	int i, m;
-	int modifiers[] = {0, LockMask, numlockmask, numlockmask|LockMask };
 	KeyCode code;
 
-	for (i = 0, m = 0; keys[i].function != NULL; i++, m = 0) {
+	for (i = 0; keys[i].function != NULL; i++) {
 		if (!(code = XKeysymToKeycode(dis, keys[i].keysym))) continue;
-		while (m < LEN(modifiers)) {
-			XGrabKey(dis, code, keys[i].mod | modifiers[m++], 
+		for (m = 0; m < LEN(modifiers); m++)
+			XGrabKey(dis, code, keys[i].mod|modifiers[m], 
 				root, True, GrabModeAsync, GrabModeAsync);
-		}
 	}
 }
 
@@ -814,18 +762,20 @@ void buttonpress(XEvent *e) {
 	}
 }
 
-void mappingnotify(XEvent *e) {
-	debug("Mapping notify!\n");
-	XMappingEvent *ev = &e->xmapping;
-
-	XRefreshKeyboardMapping(ev);
-	if (ev->request == MappingKeyboard)
-		grabkeys();
+void clientmessage(XEvent *e) {
+	debug("client message\n");
+	Client *c; Desktop *d;
+	if (!wintoclient(e->xclient.window, &c, &d))
+		return;
+	
+	if (e->xclient.message_type == netatoms[NET_ACTIVE])
+		focus(c, d);
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
 	fprintf(stderr, "XError: request %d code %d\n",
 		ee->request_code, ee->error_code);
+	return 0;
 }
 
 void killclient(Client *c, Desktop *d, Arg arg) {
