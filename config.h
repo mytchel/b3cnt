@@ -63,7 +63,6 @@ static struct Key mainmap[] = {
 	{ 0,                    XK_equal,  fullheight,     {NULL}},
 	{ ShiftMask,            XK_equal,  fullwidth,      {NULL}},
 	{ 0,                    XK_f,      fullscreen,     {NULL}},
-	{ 0,                    XK_f,      toggleborder,   {NULL}},
 	{ ShiftMask,            XK_b,      toggleborder,   {NULL}},
 
 	{ 0,                    XK_t,      spawn,          {.com = timecmd}},

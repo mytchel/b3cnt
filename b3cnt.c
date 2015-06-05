@@ -307,7 +307,7 @@ void updateclientwin(Client *c) {
 	h -= b;
 	if (!c->full_height) { y = c->y; h = c->h;}
 	if (!c->full_width) { x = c->x; w = c->w;}
-
+	
 	XMoveResizeWindow(dis, c->win, x, y, w, h);
 }
 
@@ -399,7 +399,7 @@ void toggleborder(Client *c, Desktop *d, Arg arg) {
 	c->h += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
 
 	XSetWindowBorderWidth(dis, c->win,
-	         c->b ? 0 : BORDER_WIDTH * 2);
+	         c->b ? BORDER_WIDTH : 0);
 
 	updateclientwin(c);
 }
@@ -552,6 +552,17 @@ Client *lastclient(Desktop *d) {
 	return c;
 }
 
+void removewindow(Window w) {
+	Client *c; Desktop *d;
+	if (wintoclient(w, &c, &d)) {
+		debug("removing window\n");
+		if (c == lastclient(d))
+			focus(lastclient(d)->prev, d);
+		removeclient(c, d);
+		free(c);
+	}
+}
+
 void addclient(Client *n, Client *a, Desktop *d) {
 	if (!d->head) {
 		d->head = n;
@@ -665,17 +676,6 @@ void maprequest(XEvent *e) {
 	XMapWindow(dis, ev->window);
 	if (!wintoclient(ev->window, &c, &d))
 		addwindow(ev->window, &desktops[current]);
-}
-
-void removewindow(Window w) {
-	Client *c; Desktop *d;
-	if (wintoclient(w, &c, &d)) {
-		debug("removing window\n");
-		if (c == lastclient(d))
-			focus(lastclient(d), d);
-		removeclient(c, d);
-		free(c);
-	}
 }
 
 void unmapnotify(XEvent *e) {
