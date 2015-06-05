@@ -50,8 +50,8 @@ char *volup[]		= {"amixer", "set", "Master", "5%+", NULL};
 char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
 
 #define DESKTOP(key, num) \
-{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
-{ Mod1Mask|ShiftMask, key, clienttodesktop, {.i = num}}
+	{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
+	{ ControlMask|ShiftMask,key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
 	{ 0,                    XK_o,      shiftfocus,     {.i = 1}},
@@ -70,7 +70,8 @@ static struct Key mainmap[] = {
 	{ 0,                    XK_b,      spawn,          {.com = batterycmd}},
 
 	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
-	{ControlMask,           XK_g,      exitsubmap,     {NULL}},
+	{ ControlMask,          XK_g,      exitsubmap,     {NULL}},
+	{ ControlMask,          XK_bracketleft,exitsubmap,     {NULL}},
 	
 	{},
 };
@@ -78,10 +79,10 @@ static struct Key mainmap[] = {
 static struct Key keys[] = {
 	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
 
-	{ Mod1Mask|ControlMask,	XK_Return,      spawn,          {.com = termcmd}}, 
-	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
+	{ ShiftMask|ControlMask,XK_Return,      spawn,          {.com = termcmd}}, 
+	{ ShiftMask|ControlMask,XK_slash,       spawn,          {.com = menucmd}}, 
 
-	{ Mod1Mask|ControlMask,	XK_x,           killclient,     {NULL}},
+	{ ShiftMask|ControlMask,XK_x,           killclient,     {NULL}},
 
 	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
 
@@ -109,5 +110,4 @@ static struct Button buttons[] = {
 	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
 	{}
 };
-
 

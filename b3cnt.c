@@ -80,7 +80,7 @@ struct Client {
 };
 
 struct Desktop {
-	Client *head, *current, *old;
+	Client *head;
 	Desktop *next, *prev;
 };
 
@@ -243,7 +243,7 @@ void quit() {
 }
 
 void focus(Client *c, Desktop *d) {
-	Client *t;
+	Client *t, *o;
 	int i;
 
 	if (d != &desktops[current]) {
@@ -254,31 +254,30 @@ void focus(Client *c, Desktop *d) {
 		return;
 	}
 
-	if (d->current != c) {
-		if (d->current)
-			XSetWindowBorder(dis, d->current->win, win_unfocus);
-		d->old = d->current;
-		d->current = c;
-	}
+	o = lastclient(d);
+	if (o && c != o)
+		XSetWindowBorder(dis, o->win, win_unfocus);
+	
+	if (c) removeclient(c, d);
 
 	for (t = d->head; t; t = t->next)
-		for (i = 0; t != c &&i < LEN(modifiers); i++)
+		for (i = 0; i < LEN(modifiers); i++)
 			XGrabButton(dis, AnyButton, modifiers[i], t->win,
 			       False, ButtonPressMask, GrabModeAsync, 
 			       GrabModeAsync, None, None);
 
 	if (c) {
+		XRaiseWindow(dis, c->win);
 		XSetWindowBorder(dis, c->win, win_focus);
 		XSetInputFocus(dis, c->win, RevertToPointerRoot, 
 			CurrentTime);
-		XUngrabButton(dis, AnyButton, 0, c->win);
     		XChangeProperty(dis, root,
     		         netatoms[NET_ACTIVE], XA_WINDOW, 32,
     		         PropModeReplace, (unsigned char *) &c->win, 1);
 
-    		removeclient(c, d);
+		XUngrabButton(dis, AnyButton, 0, c->win);
+    		
 		addclient(c, lastclient(d), d);
-		XRaiseWindow(dis, c->win);
 	} else {
 		XDeleteProperty(dis, root, netatoms[NET_ACTIVE]);
 	}
@@ -303,11 +302,6 @@ void updateclientdata(Client *c) {
 void updateclientwin(Client *c) {
 	int x, y, w, h;
 	int b = c->b ? BORDER_WIDTH * 2 : 0;
-
-	XSetWindowBorderWidth(dis, c->win, c->b ? BORDER_WIDTH : 0);
-	XSetWindowBorder(dis, c->win, 
-		c == desktops[current].current ? win_focus : win_unfocus);
-
 	monitorholdingclient(c, &x, &y, &w, &h);
 	w -= b;
 	h -= b;
@@ -357,7 +351,7 @@ void changedesktop(Client *c, Desktop *d, Arg arg) {
 			&(XSetWindowAttributes)
 			{.do_not_propagate_mask = SubstructureNotifyMask});
 
-	for (c = desktops[current].head; c; c = c->next) 
+	for (c = d->head; c; c = c->next) 
 		XUnmapWindow(dis, c->win);
 
 	/* Now ok to listen to events.*/
@@ -365,15 +359,14 @@ void changedesktop(Client *c, Desktop *d, Arg arg) {
 			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
 	
 	current = arg.i;
-	focus(desktops[current].current, &desktops[current]);
+	focus(lastclient(&desktops[current]), &desktops[current]);
 }
 
 void clienttodesktop(Client *c, Desktop *d, Arg arg) {
 	if (!c) return;
 	removeclient(c, d);
-	changedesktop(NULL, NULL, arg);
+	changedesktop(NULL, d, arg);
 	addclient(c, lastclient(&desktops[current]), &desktops[current]);
-	XRaiseWindow(dis, c->win);
 	focus(c, &desktops[current]);
 }
 
@@ -401,10 +394,13 @@ void fullscreen(Client *c, Desktop *d, Arg arg) {
 void toggleborder(Client *c, Desktop *d, Arg arg) {
 	if (!c) return;
 
-	c->w += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
-	c->h += BORDER_WIDTH * 2 * (c->b ? 1 : -1);
-
 	c->b = !c->b;
+	c->w += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
+	c->h += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
+
+	XSetWindowBorderWidth(dis, c->win,
+	         c->b ? 0 : BORDER_WIDTH * 2);
+
 	updateclientwin(c);
 }
 
@@ -427,17 +423,18 @@ void shiftfocus(Client *c, Desktop *d, Arg arg) {
 }
 
 void focusold(Client *c, Desktop *d, Arg arg) {
-	if (d->old) focus(d->old, d);
+	c = lastclient(d);
+	if (c && c->prev) focus(c->prev, d);
 }
 
 void sendtoback(Client *c, Desktop *d, Arg arg) {
 	if (!c) return;
-	removeclient(c, d);
-	addclient(c, NULL, d);
 	XLowerWindow(dis, c->win);
 	
-	if (d->old) focus(d->old, d);
-	else focus(lastclient(d), d);
+	removeclient(c, d);
+	addclient(c, NULL, d);
+	
+	focus(lastclient(d), d);
 }
 
 void mousemove(Client *c, Desktop *d, Arg arg) {
@@ -473,7 +470,6 @@ void mousemotion(int t) {
 		GrabModeAsync, GrabModeAsync, None, None, CurrentTime)
 			 != GrabSuccess) return;
 
-	focus(c, d);
 	c->full_width = c->full_height = False;
 	bw = c->b ? BORDER_WIDTH * 2 : 0;
 
@@ -530,6 +526,11 @@ void addwindow(Window w, Desktop *d) {
 		c->y = ry - c->h / 2;
 	}
 
+	XSetWindowBorderWidth(dis, c->win, BORDER_WIDTH);
+	
+	if (d->head)
+		XSetWindowBorder(dis, lastclient(d)->win, win_unfocus);
+
 	monitorholdingclient(c, &mx, &my, &mw, &mh);
 	if (c->x < mx)
 		c->x = mx;
@@ -545,10 +546,15 @@ void addwindow(Window w, Desktop *d) {
 	focus(c, d);
 }
 
+Client *lastclient(Desktop *d) {
+	Client *c;
+	for (c = d->head; c && c->next; c = c->next);
+	return c;
+}
+
 void addclient(Client *n, Client *a, Desktop *d) {
 	if (!d->head) {
 		d->head = n;
-		d->current = d->old = NULL;
 		n->next = NULL;
 		n->prev = NULL;
 	} else if (!a) {
@@ -563,33 +569,11 @@ void addclient(Client *n, Client *a, Desktop *d) {
 			a->next->prev = n;
 		a->next = n;
 	}
-
-	updateclientwin(n);
-}
-
-Client *lastclient(Desktop *d) {
-	Client *c;
-	for (c = d->head; c && c->next; c = c->next);
-	return c;
 }
 
 void removeclient(Client *c, Desktop *d) {
 	if (d->head == c)
 		d->head = c->next;
-
-	if (d->old == c) d->old = NULL;
-	
-	if (d->current == c) {
-		if (d->old) 
-			d->current = d->old;
-		else if (c->prev)
-			d->current = c->prev;
-		else
-			d->current = c->next;
-		
-		d->old = NULL;
-	}
-
 	if (c->prev)
 		c->prev->next = c->next;
 	if (c->next)
@@ -631,7 +615,7 @@ int keypressed(XKeyEvent ke, Key *map) {
 			if (map[i].function == exitsubmap)
 				return False;
 			else
-				map[i].function(desktops[current].current,
+				map[i].function(lastclient(&desktops[current]),
 					 &desktops[current], map[i].arg);
 		}
 	}
@@ -684,16 +668,13 @@ void maprequest(XEvent *e) {
 }
 
 void removewindow(Window w) {
-	Client *c; Desktop *d; int f = 0;
+	Client *c; Desktop *d;
 	if (wintoclient(w, &c, &d)) {
 		debug("removing window\n");
-		if (d == &desktops[current]) f = 1;
+		if (c == lastclient(d))
+			focus(lastclient(d), d);
 		removeclient(c, d);
 		free(c);
-		if (f) {
-			debug("removed window in current desktop, refocusing\n");
-			focus(desktops[current].current, &desktops[current]);
-		}
 	}
 }
 
@@ -748,7 +729,7 @@ void buttonpress(XEvent *e) {
 		if (buttons[i].function 
 			&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state)
 			&& buttons[i].button == ev->button) {
-			buttons[i].function(desktops[current].current, 
+			buttons[i].function(lastclient(&desktops[current]),
 				&desktops[current], buttons[i].arg);
 		}
 	}
@@ -799,4 +780,3 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
-
