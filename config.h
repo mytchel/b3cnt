@@ -30,12 +30,13 @@ void debug(char *msg) {
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
 #define FOCUS		"#333333"
-#define UNFOCUS		"#999999"
+#define UNFOCUS		"#aaaaaa"
 
 // Min window width/height
 #define MIN		100
 
-char *termcmd[]		= {"st", "-e", "tmux", NULL};
+char *termcmd[]		= {"st", NULL};
+
 /* scripts from nenu */
 char *menucmd[]		= {"nexec", NULL};
 char *wincmd[]		= {"nwindow", NULL};
@@ -57,12 +58,12 @@ static struct Key mainmap[] = {
 	{ ShiftMask,            XK_o,      shiftfocus,     {.i = -1}},
 	{ 0,                    XK_i,      focusold,       {NULL}},
 
-	{ 0,                    XK_p,      pushtobottom,   {NULL}},
-	{ 0,                    XK_n,      bringtotop,     {NULL}},
-
+	{ 0,                    XK_p,      sendtoback,     {NULL}},
+	
 	{ 0,                    XK_equal,  fullheight,     {NULL}},
 	{ ShiftMask,            XK_equal,  fullwidth,      {NULL}},
 	{ 0,                    XK_f,      fullscreen,     {NULL}},
+	{ 0,                    XK_f,      toggleborder,   {NULL}},
 	{ ShiftMask,            XK_b,      toggleborder,   {NULL}},
 
 	{ 0,                    XK_t,      spawn,          {.com = timecmd}},
@@ -105,7 +106,6 @@ static struct Key keys[] = {
 
 static struct Button buttons[] = {
 	{ Mod1Mask,         Button1,    mousemove,      {NULL}},
-	{ Mod1Mask,         Button2,    spawn,          {.com = wincmd}},
 	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
 	{}
 };

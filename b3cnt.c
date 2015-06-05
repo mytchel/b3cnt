@@ -84,14 +84,11 @@ struct Desktop {
 	Desktop *next, *prev;
 };
 
-static Arg junkarg = {.i = 0};
-
 static void changedesktop(Client *c, Desktop *d, Arg arg);
 static void clienttodesktop(Client *c, Desktop *d, Arg arg);
 static void shiftfocus(Client *c, Desktop *d, Arg arg);
 static void focusold(Client *c, Desktop *d, Arg arg);
-static void pushtobottom(Client *c, Desktop *d, Arg arg);
-static void bringtotop(Client *c, Desktop *d, Arg arg);
+static void sendtoback(Client *c, Desktop *d, Arg arg);
 static void fullwidth(Client *c, Desktop *d, Arg arg);
 static void fullheight(Client *c, Desktop *d, Arg arg);
 static void fullscreen(Client *c, Desktop *d, Arg arg);
@@ -265,11 +262,10 @@ void focus(Client *c, Desktop *d) {
 	}
 
 	for (t = d->head; t; t = t->next)
-		if (t != c)
-			for (i = 0; i < LEN(modifiers); i++)
-				XGrabButton(dis, AnyButton, modifiers[i], t->win,
-				       False, ButtonPressMask, GrabModeAsync, 
-				       GrabModeAsync, None, None);
+		for (i = 0; t != c &&i < LEN(modifiers); i++)
+			XGrabButton(dis, AnyButton, modifiers[i], t->win,
+			       False, ButtonPressMask, GrabModeAsync, 
+			       GrabModeAsync, None, None);
 
 	if (c) {
 		XSetWindowBorder(dis, c->win, win_focus);
@@ -279,6 +275,10 @@ void focus(Client *c, Desktop *d) {
     		XChangeProperty(dis, root,
     		         netatoms[NET_ACTIVE], XA_WINDOW, 32,
     		         PropModeReplace, (unsigned char *) &c->win, 1);
+
+    		removeclient(c, d);
+		addclient(c, lastclient(d), d);
+		XRaiseWindow(dis, c->win);
 	} else {
 		XDeleteProperty(dis, root, netatoms[NET_ACTIVE]);
 	}
@@ -408,22 +408,6 @@ void toggleborder(Client *c, Desktop *d, Arg arg) {
 	updateclientwin(c);
 }
 
-void pushtobottom(Client *c, Desktop *d, Arg arg) {
-	if (!c || !d) return;
-	removeclient(c, d);
-	addclient(c, NULL, d);
-	XLowerWindow(dis, c->win);
-	focus(c, d);
-}
-
-void bringtotop(Client *c, Desktop *d, Arg arg) {
-	if (!c || !d) return;
-	removeclient(c, d);
-	addclient(c, lastclient(d), d);
-	XRaiseWindow(dis, c->win);
-	focus(c, d);
-}
-
 void shiftfocus(Client *c, Desktop *d, Arg arg) {
 	if (!c)	return;  
 
@@ -444,6 +428,16 @@ void shiftfocus(Client *c, Desktop *d, Arg arg) {
 
 void focusold(Client *c, Desktop *d, Arg arg) {
 	if (d->old) focus(d->old, d);
+}
+
+void sendtoback(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	removeclient(c, d);
+	addclient(c, NULL, d);
+	XLowerWindow(dis, c->win);
+	
+	if (d->old) focus(d->old, d);
+	else focus(lastclient(d), d);
 }
 
 void mousemove(Client *c, Desktop *d, Arg arg) {
@@ -479,7 +473,7 @@ void mousemotion(int t) {
 		GrabModeAsync, GrabModeAsync, None, None, CurrentTime)
 			 != GrabSuccess) return;
 
-	bringtotop(c, d, junkarg);
+	focus(c, d);
 	c->full_width = c->full_height = False;
 	bw = c->b ? BORDER_WIDTH * 2 : 0;
 
@@ -731,9 +725,7 @@ void configurerequest(XEvent *e) {
 	if (wintoclient(ev->window, &c, &d)) {
 		debug("got win\n");
 		if (ev->detail == Above)
-			bringtotop(c, d, junkarg);
-		else if (ev->detail == Below)
-			pushtobottom(c, d, junkarg);
+			focus(c, d);
 		updateclientdata(c);
 	}
 }
@@ -773,7 +765,7 @@ void clientmessage(XEvent *e) {
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
-	fprintf(stderr, "XError: request %d code %d\n",
+	fprintf(stderr, "b3cnt caught error: request %d code %d\n",
 		ee->request_code, ee->error_code);
 	return 0;
 }
@@ -784,14 +776,10 @@ void killclient(Client *c, Desktop *d, Arg arg) {
 
 void spawn(Client *c, Desktop *d, Arg arg) {
 	if (fork() == 0) {
-		if (fork() == 0) {
-			if(dis)
-				close(ConnectionNumber(dis));
-
-			setsid();
-			execvp((char*)arg.com[0],(char**)arg.com);
-		}
-		exit(0);
+		if (dis) close(ConnectionNumber(dis));
+		
+		setsid();
+		execvp(arg.com[0], arg.com);
 	}
 }
 
@@ -811,3 +799,4 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
+
