@@ -556,10 +556,10 @@ void removewindow(Window w) {
 	Client *c; Desktop *d;
 	if (wintoclient(w, &c, &d)) {
 		debug("removing window\n");
-		if (c == lastclient(d))
-			focus(lastclient(d)->prev, d);
 		removeclient(c, d);
 		free(c);
+		if (d == &desktops[current] && d->head)
+			focus(lastclient(d), d);
 	}
 }
 
