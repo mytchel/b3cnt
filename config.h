@@ -54,8 +54,6 @@ char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
 	{ ControlMask|ShiftMask,key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
-	{ 0,                    XK_o,      shiftfocus,     {.i = 1}},
-	{ ShiftMask,            XK_o,      shiftfocus,     {.i = -1}},
 	{ 0,                    XK_i,      focusold,       {NULL}},
 
 	{ 0,                    XK_p,      sendtoback,     {NULL}},

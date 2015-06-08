@@ -86,7 +86,6 @@ struct Desktop {
 
 static void changedesktop(Client *c, Desktop *d, Arg arg);
 static void clienttodesktop(Client *c, Desktop *d, Arg arg);
-static void shiftfocus(Client *c, Desktop *d, Arg arg);
 static void focusold(Client *c, Desktop *d, Arg arg);
 static void sendtoback(Client *c, Desktop *d, Arg arg);
 static void fullwidth(Client *c, Desktop *d, Arg arg);
@@ -115,7 +114,7 @@ static void sigchld(int unused);
 static void monitorholdingclient(Client *c, int *mx, int *my, 
 		int *mw, int *mh);
 static int wintoclient(Window w, Client **c, Desktop **d);
-static void focus(Client *c, Desktop *d);
+static void updatefocus(Desktop *d);
 static void addwindow(Window w, Desktop *d);
 /* adds c after a on Desktop d. if a is null then sets c to be head. */
 static void addclient(Client *c, Client *a, Desktop *d);
@@ -200,35 +199,6 @@ void setup() {
 	XSync(dis, False);
 }
 
-unsigned long getcolor(char *color, int screen) {
-	XColor c; Colormap map = DefaultColormap(dis, screen);
-	if (!XAllocNamedColor(dis, map, color, &c, &c))
-		die("Cannot allocate color.");
-	return c.pixel;
-}
-
-void die(char* e) {
-	fprintf(stderr, "b3cnt: %s\n",e);
-	exit(1);
-}
-
-void sendkillsignal(Window w) {
-	XEvent ke;
-	ke.type = ClientMessage;
-	ke.xclient.window = w;
-	ke.xclient.format = 32;
-	ke.xclient.message_type = wmatoms[WM_PROTOCOLS];
-	ke.xclient.data.l[0]    = wmatoms[WM_DELETE_WINDOW];
-	ke.xclient.data.l[1]	= CurrentTime;
-	XSendEvent(dis, w, False, NoEventMask, &ke);
-}
-
-void sigchld(int unused) {
-	if(signal(SIGCHLD, sigchld) == SIG_ERR)
-		die("Can't install SIGCHLD handler");
-	while(0 < waitpid(-1, NULL, WNOHANG));
-}
-
 void quit() {
 	Client *c; int i;
 
@@ -242,30 +212,173 @@ void quit() {
 			sendkillsignal(c->win);
 }
 
-void focus(Client *c, Desktop *d) {
-	Client *t, *o;
-	int i;
+void killclient(Client *c, Desktop *d, Arg arg) {
+	if (c) sendkillsignal(c->win);
+}
 
-	if (d != &desktops[current]) {
-		for (i = 0; i < DESKTOP_NUM && d != &desktops[i]; i++);
-		Arg arg;
-		arg.i = i;
-		changedesktop(NULL, NULL, arg);
+void spawn(Client *c, Desktop *d, Arg arg) {
+	if (fork() == 0) {
+		if (dis) close(ConnectionNumber(dis));
+		
+		setsid();
+		execvp(arg.com[0], arg.com);
+	}
+}
+
+void changedesktop(Client *c, Desktop *d, Arg arg) {
+	if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
 		return;
+
+	for (c = desktops[arg.i].head; c; c = c->next) 
+		XMapWindow(dis, c->win);
+
+	XChangeWindowAttributes(dis, root, CWEventMask, 
+			&(XSetWindowAttributes)
+			{.do_not_propagate_mask = SubstructureNotifyMask});
+
+	for (c = d->head; c; c = c->next) 
+		XUnmapWindow(dis, c->win);
+
+	/* Now ok to listen to events.*/
+	XChangeWindowAttributes(dis, root, CWEventMask, 
+			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
+	
+	current = arg.i;
+	updatefocus(&desktops[current]);
+}
+
+void clienttodesktop(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	removeclient(c, d);
+	addclient(c, lastclient(&desktops[arg.i]), &desktops[arg.i]);
+	changedesktop(NULL, d, arg);
+}
+
+void fullwidth(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	c->full_width = !c->full_width;
+	updateclientwin(c);
+}
+
+void fullheight(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	c->full_height = !c->full_height;
+	updateclientwin(c);
+}
+
+void fullscreen(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	if (c->full_width && c->full_height)
+		c->full_width = c->full_height = 0;
+	else
+		c->full_width = c->full_height = 1;
+	updateclientwin(c);
+}
+
+void toggleborder(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+
+	c->b = !c->b;
+	c->w += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
+	c->h += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
+
+	XSetWindowBorderWidth(dis, c->win,
+	         c->b ? BORDER_WIDTH : 0);
+
+	updateclientwin(c);
+}
+
+void focusold(Client *c, Desktop *d, Arg arg) {
+	c = lastclient(d);
+	if (c && c->prev) {
+		removeclient(c, d);
+		addclient(c, c->prev->prev, d);
+		updatefocus(d);
+	}
+}
+
+void sendtoback(Client *c, Desktop *d, Arg arg) {
+	if (!c) return;
+	XLowerWindow(dis, c->win);
+	
+	removeclient(c, d);
+	addclient(c, NULL, d);
+	
+	updatefocus(d);
+}
+
+void mousemove(Client *c, Desktop *d, Arg arg) {
+	mousemotion(MOVE);
+}
+
+void mouseresize(Client *c, Desktop *d, Arg arg) {
+	mousemotion(RESIZE);
+}
+
+void mousemotion(int t) {
+	int rx, ry, xw, yh, bw, dc;
+	unsigned int v;
+	Window w, wr;
+	XWindowAttributes wa;
+	XEvent ev;
+	Client *c; Desktop *d;
+
+	if (!XQueryPointer(dis, root, &w, &wr, &rx, &ry, &dc, &dc, &v) 
+			|| !wintoclient(wr, &c, &d)) return;
+
+	if (!XGetWindowAttributes(dis, c->win, &wa)) return;
+
+	if (t == RESIZE) {
+		XWarpPointer(dis, c->win, c->win, 0, 0, 0, 0, 
+			wa.width, wa.height);
+		rx = wa.x + wa.width;
+		ry = wa.y + wa.height;
 	}
 
-	o = lastclient(d);
-	if (o && c != o)
-		XSetWindowBorder(dis, o->win, win_unfocus);
-	
-	if (c) removeclient(c, d);
+	if (XGrabPointer(dis, root, False, 
+		ButtonPressMask|ButtonReleaseMask|PointerMotionMask, 
+		GrabModeAsync, GrabModeAsync, None, None, CurrentTime)
+			 != GrabSuccess) return;
 
-	for (t = d->head; t; t = t->next)
+	c->full_width = c->full_height = False;
+	bw = c->b ? BORDER_WIDTH * 2 : 0;
+
+	do {
+		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask
+			|PointerMotionMask|SubstructureRedirectMask, &ev);
+		if (ev.type == MotionNotify) {
+			xw = (t == MOVE ? wa.x : wa.width - bw) 
+				+ ev.xmotion.x - rx;
+			yh = (t == MOVE ? wa.y : wa.height - bw) 
+				+ ev.xmotion.y - ry;
+			if (t == RESIZE) 
+				XResizeWindow(dis, c->win, 
+						xw > MIN ? xw : MIN,
+						yh > MIN ? yh : MIN);
+			else if (t == MOVE) XMoveWindow(dis, c->win, xw, yh);
+		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
+			events[ev.type](&ev);
+	} while (ev.type != ButtonRelease);
+
+	XUngrabPointer(dis, CurrentTime);
+	updateclientdata(c);
+}
+
+void updatefocus(Desktop *d) {
+	Client *c;
+	int i;
+	
+	debug("focus\n");
+
+	for (c = d->head; c && c->next; c = c->next) {
 		for (i = 0; i < LEN(modifiers); i++)
-			XGrabButton(dis, AnyButton, modifiers[i], t->win,
+			XGrabButton(dis, AnyButton, modifiers[i], c->win,
 			       False, ButtonPressMask, GrabModeAsync, 
 			       GrabModeAsync, None, None);
+		XSetWindowBorder(dis, c->win, win_unfocus);
+	}
 
+	c = lastclient(d);
 	if (c) {
 		XRaiseWindow(dis, c->win);
 		XSetWindowBorder(dis, c->win, win_focus);
@@ -275,9 +388,8 @@ void focus(Client *c, Desktop *d) {
     		         netatoms[NET_ACTIVE], XA_WINDOW, 32,
     		         PropModeReplace, (unsigned char *) &c->win, 1);
 
-		XUngrabButton(dis, AnyButton, 0, c->win);
-    		
-		addclient(c, lastclient(d), d);
+		for (i = 0; i < LEN(modifiers); i++)
+			XUngrabButton(dis, AnyButton, modifiers[i], c->win);
 	} else {
 		XDeleteProperty(dis, root, netatoms[NET_ACTIVE]);
 	}
@@ -340,160 +452,6 @@ void monitorholdingclient(Client *c, int *mx, int *my, int *mw, int *mh) {
 	XFree(info);	
 }
 
-void changedesktop(Client *c, Desktop *d, Arg arg) {
-	if (arg.i < 0 || arg.i > DESKTOP_NUM || arg.i == current)
-		return;
-
-	for (c = desktops[arg.i].head; c; c = c->next) 
-		XMapWindow(dis, c->win);
-
-	XChangeWindowAttributes(dis, root, CWEventMask, 
-			&(XSetWindowAttributes)
-			{.do_not_propagate_mask = SubstructureNotifyMask});
-
-	for (c = d->head; c; c = c->next) 
-		XUnmapWindow(dis, c->win);
-
-	/* Now ok to listen to events.*/
-	XChangeWindowAttributes(dis, root, CWEventMask, 
-			&(XSetWindowAttributes) {.event_mask = ROOTMASK});
-	
-	current = arg.i;
-	focus(lastclient(&desktops[current]), &desktops[current]);
-}
-
-void clienttodesktop(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-	removeclient(c, d);
-	changedesktop(NULL, d, arg);
-	addclient(c, lastclient(&desktops[current]), &desktops[current]);
-	focus(c, &desktops[current]);
-}
-
-void fullwidth(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-	c->full_width = !c->full_width;
-	updateclientwin(c);
-}
-
-void fullheight(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-	c->full_height = !c->full_height;
-	updateclientwin(c);
-}
-
-void fullscreen(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-	if (c->full_width && c->full_height)
-		c->full_width = c->full_height = 0;
-	else
-		c->full_width = c->full_height = 1;
-	updateclientwin(c);
-}
-
-void toggleborder(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-
-	c->b = !c->b;
-	c->w += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
-	c->h += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
-
-	XSetWindowBorderWidth(dis, c->win,
-	         c->b ? BORDER_WIDTH : 0);
-
-	updateclientwin(c);
-}
-
-void shiftfocus(Client *c, Desktop *d, Arg arg) {
-	if (!c)	return;  
-
-	if (arg.i > 0) {
-		if (c->next)
-			focus(c->next, d);
-		else
-			focus(d->head, d);
-	} else if (arg.i < 0) {
-		if (c->prev)
-			focus(c->prev, d);
-		else {
-			for (; c->next; c = c->next);
-			focus(c, d);
-		}
-	}
-}
-
-void focusold(Client *c, Desktop *d, Arg arg) {
-	c = lastclient(d);
-	if (c && c->prev) focus(c->prev, d);
-}
-
-void sendtoback(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-	XLowerWindow(dis, c->win);
-	
-	removeclient(c, d);
-	addclient(c, NULL, d);
-	
-	focus(lastclient(d), d);
-}
-
-void mousemove(Client *c, Desktop *d, Arg arg) {
-	mousemotion(MOVE);
-}
-
-void mouseresize(Client *c, Desktop *d, Arg arg) {
-	mousemotion(RESIZE);
-}
-
-void mousemotion(int t) {
-	int rx, ry, xw, yh, bw, dc;
-	unsigned int v;
-	Window w, wr;
-	XWindowAttributes wa;
-	XEvent ev;
-	Client *c; Desktop *d;
-
-	if (!XQueryPointer(dis, root, &w, &wr, &rx, &ry, &dc, &dc, &v) 
-			|| !wintoclient(wr, &c, &d)) return;
-
-	if (!XGetWindowAttributes(dis, c->win, &wa)) return;
-
-	if (t == RESIZE) {
-		XWarpPointer(dis, c->win, c->win, 0, 0, 0, 0, 
-			wa.width, wa.height);
-		rx = wa.x + wa.width;
-		ry = wa.y + wa.height;
-	}
-
-	if (XGrabPointer(dis, root, False, 
-		ButtonPressMask|ButtonReleaseMask|PointerMotionMask, 
-		GrabModeAsync, GrabModeAsync, None, None, CurrentTime)
-			 != GrabSuccess) return;
-
-	c->full_width = c->full_height = False;
-	bw = c->b ? BORDER_WIDTH * 2 : 0;
-
-	do {
-		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask
-			|PointerMotionMask|SubstructureRedirectMask, &ev);
-		if (ev.type == MotionNotify) {
-			xw = (t == MOVE ? wa.x : wa.width - bw) 
-				+ ev.xmotion.x - rx;
-			yh = (t == MOVE ? wa.y : wa.height - bw) 
-				+ ev.xmotion.y - ry;
-			if (t == RESIZE) 
-				XResizeWindow(dis, c->win, 
-						xw > MIN ? xw : MIN,
-						yh > MIN ? yh : MIN);
-			else if (t == MOVE) XMoveWindow(dis, c->win, xw, yh);
-		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
-			events[ev.type](&ev);
-	} while (ev.type != ButtonRelease);
-
-	XUngrabPointer(dis, CurrentTime);
-	updateclientdata(c);
-}
-
 void addwindow(Window w, Desktop *d) {
 	int i, mi;
 	Window win_away; /* Don't care about this. */
@@ -502,8 +460,10 @@ void addwindow(Window w, Desktop *d) {
 	Client *c;
 	int mx, my, mw, mh;
 
-	if(!(c = malloc(sizeof(Client))))
-		die("Error malloc!");
+	if(!(c = malloc(sizeof(Client)))) {
+		fprintf(stderr, "Error malloc!");
+		return;
+	}
 
 	XSelectInput(dis, w, SUBMASK);
 
@@ -543,7 +503,7 @@ void addwindow(Window w, Desktop *d) {
 
 	addclient(c, lastclient(d), d);
 	updateclientwin(c);
-	focus(c, d);
+	updatefocus(d);
 }
 
 Client *lastclient(Desktop *d) {
@@ -558,8 +518,8 @@ void removewindow(Window w) {
 		debug("removing window\n");
 		removeclient(c, d);
 		free(c);
-		if (d == &desktops[current] && d->head)
-			focus(lastclient(d), d);
+		if (d == &desktops[current])
+			updatefocus(d);
 	}
 }
 
@@ -694,7 +654,7 @@ void configurerequest(XEvent *e) {
 	debug("configurerequest\n");
 	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
-
+	
 	XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
 			ev->width, ev->height);
 
@@ -705,8 +665,16 @@ void configurerequest(XEvent *e) {
 
 	if (wintoclient(ev->window, &c, &d)) {
 		debug("got win\n");
-		if (ev->detail == Above)
-			focus(c, d);
+		if (ev->detail == Above) {
+			removeclient(c, d);
+			addclient(c, lastclient(d), d);
+		} else if (ev->detail == Below) {
+			removeclient(c, d);
+			addclient(c, NULL, d);
+		}
+		
+		if (d == &desktops[current])
+			updatefocus(d);
 		updateclientdata(c);
 	}
 }
@@ -722,15 +690,19 @@ void buttonpress(XEvent *e) {
 	XButtonEvent *ev = &e->xbutton;	
 	Client *c; Desktop *d;
 
-	if (wintoclient(ev->window, &c, &d))
-		focus(c, d);
+	/* You cant click a window that I have that
+	 * isn't in the current desktop right? */
+	if (wintoclient(ev->window, &c, &d)) {
+		removeclient(c, d);
+		addclient(c, lastclient(d), d);
+		updatefocus(d);
+	} else return;
 
 	for (i = 0; i < LEN(buttons); i++) {
 		if (buttons[i].function 
 			&& CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state)
 			&& buttons[i].button == ev->button) {
-			buttons[i].function(lastclient(&desktops[current]),
-				&desktops[current], buttons[i].arg);
+			buttons[i].function(c, d, buttons[i].arg);
 		}
 	}
 }
@@ -741,8 +713,13 @@ void clientmessage(XEvent *e) {
 	if (!wintoclient(e->xclient.window, &c, &d))
 		return;
 	
-	if (e->xclient.message_type == netatoms[NET_ACTIVE])
-		focus(c, d);
+	if (e->xclient.message_type == netatoms[NET_ACTIVE]) {
+		if (d == &desktops[current]) {
+			removeclient(c, d);
+			addclient(c, lastclient(d), d);
+			updatefocus(d);
+		}
+	}
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
@@ -751,17 +728,33 @@ int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
 	return 0;
 }
 
-void killclient(Client *c, Desktop *d, Arg arg) {
-	if (c) sendkillsignal(c->win);
+unsigned long getcolor(char *color, int screen) {
+	XColor c; Colormap map = DefaultColormap(dis, screen);
+	if (!XAllocNamedColor(dis, map, color, &c, &c))
+		die("Cannot allocate color.");
+	return c.pixel;
 }
 
-void spawn(Client *c, Desktop *d, Arg arg) {
-	if (fork() == 0) {
-		if (dis) close(ConnectionNumber(dis));
-		
-		setsid();
-		execvp(arg.com[0], arg.com);
-	}
+void die(char* e) {
+	fprintf(stderr, "b3cnt: %s\n",e);
+	exit(1);
+}
+
+void sendkillsignal(Window w) {
+	XEvent ke;
+	ke.type = ClientMessage;
+	ke.xclient.window = w;
+	ke.xclient.format = 32;
+	ke.xclient.message_type = wmatoms[WM_PROTOCOLS];
+	ke.xclient.data.l[0]    = wmatoms[WM_DELETE_WINDOW];
+	ke.xclient.data.l[1]	= CurrentTime;
+	XSendEvent(dis, w, False, NoEventMask, &ke);
+}
+
+void sigchld(int unused) {
+	if(signal(SIGCHLD, sigchld) == SIG_ERR)
+		die("Can't install SIGCHLD handler");
+	while(0 < waitpid(-1, NULL, WNOHANG));
 }
 
 int main(int argc, char **argv) {
