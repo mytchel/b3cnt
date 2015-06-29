@@ -289,7 +289,6 @@ void toggleborder(Client *c, Desktop *d, Arg arg) {
 }
 
 void focusold(Client *c, Desktop *d, Arg arg) {
-	c = lastclient(d);
 	if (c && c->prev) {
 		removeclient(c, d);
 		addclient(c, c->prev->prev, d);
@@ -368,8 +367,6 @@ void updatefocus(Desktop *d) {
 	Client *c;
 	int i;
 	
-	debug("focus\n");
-
 	for (c = d->head; c && c->next; c = c->next) {
 		for (i = 0; i < LEN(modifiers); i++)
 			XGrabButton(dis, AnyButton, modifiers[i], c->win,
@@ -378,12 +375,11 @@ void updatefocus(Desktop *d) {
 		XSetWindowBorder(dis, c->win, win_unfocus);
 	}
 
-	c = lastclient(d);
-	if (c) {
+	if (c) { /* Last client */
 		XRaiseWindow(dis, c->win);
 		XSetWindowBorder(dis, c->win, win_focus);
 		XSetInputFocus(dis, c->win, RevertToPointerRoot, 
-			CurrentTime);
+			       CurrentTime);
     		XChangeProperty(dis, root,
     		         netatoms[NET_ACTIVE], XA_WINDOW, 32,
     		         PropModeReplace, (unsigned char *) &c->win, 1);
@@ -401,7 +397,7 @@ void updateclientdata(Client *c) {
 	if (!c) return;
 
 	if (!XGetWindowAttributes(dis, c->win, &window_attributes)) {
-		debug("Failed XGetWindowAttributes!\n");
+		fprintf(stderr, "Failed XGetWindowAttributes!\n");
 		return;
 	}
 
@@ -501,8 +497,9 @@ void addwindow(Window w, Desktop *d) {
 	if (c->y + c->h > my + mh)
 		c->y = my + mh - c->h - BORDER_WIDTH * 2 - 1;
 
-	addclient(c, lastclient(d), d);
 	updateclientwin(c);
+	
+	addclient(c, lastclient(d), d);
 	updatefocus(d);
 }
 
@@ -515,7 +512,6 @@ Client *lastclient(Desktop *d) {
 void removewindow(Window w) {
 	Client *c; Desktop *d;
 	if (wintoclient(w, &c, &d)) {
-		debug("removing window\n");
 		removeclient(c, d);
 		free(c);
 		if (d == &desktops[current])
@@ -629,31 +625,28 @@ void submap(Client *c, Desktop *d, Arg arg) {
 }
 
 void maprequest(XEvent *e) {
-	debug("map\n");
 	XMapRequestEvent *ev = &e->xmaprequest;
 	Client *c; Desktop *d;
 
-	XMapWindow(dis, ev->window);
-	if (!wintoclient(ev->window, &c, &d))
+	if (!wintoclient(ev->window, &c, &d)) {
+		XMapWindow(dis, ev->window);
 		addwindow(ev->window, &desktops[current]);
+	}
 }
 
 void unmapnotify(XEvent *e) {
-	debug("unmap\n");
 	removewindow(e->xunmap.window);
-	debug("unmap maybe removed window\n");
 }
 
 void destroynotify(XEvent *e) {
-	debug("destroy\n");
 	removewindow(e->xdestroywindow.window);
-	debug("destroy maybe removed window\n");
 }
 
 void configurerequest(XEvent *e) {
-	debug("configurerequest\n");
 	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
+	
+	printf("configurerequest\n");
 	
 	XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
 			ev->width, ev->height);
@@ -664,7 +657,6 @@ void configurerequest(XEvent *e) {
 		XLowerWindow(dis, ev->window);
 
 	if (wintoclient(ev->window, &c, &d)) {
-		debug("got win\n");
 		if (ev->detail == Above) {
 			removeclient(c, d);
 			addclient(c, lastclient(d), d);
@@ -680,12 +672,10 @@ void configurerequest(XEvent *e) {
 }
 
 void keypress(XEvent *e) {
-	debug("Key press\n");
 	keypressed(e->xkey, keys);
 }
 
 void buttonpress(XEvent *e) {
-	debug("Button press\n");
 	int i;
 	XButtonEvent *ev = &e->xbutton;	
 	Client *c; Desktop *d;
@@ -708,13 +698,14 @@ void buttonpress(XEvent *e) {
 }
 
 void clientmessage(XEvent *e) {
-	debug("client message\n");
 	Client *c; Desktop *d;
 	if (!wintoclient(e->xclient.window, &c, &d))
 		return;
 	
 	if (e->xclient.message_type == netatoms[NET_ACTIVE]) {
+		printf("window wants to be active\n");
 		if (d == &desktops[current]) {
+			printf("is in the current desktop\n");
 			removeclient(c, d);
 			addclient(c, lastclient(d), d);
 			updatefocus(d);

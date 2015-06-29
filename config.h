@@ -21,11 +21,6 @@
  *
  */
 
-void debug(char *msg) {
-	// Comment out the next line if you don't want debug messages.
-	fprintf(stderr, msg); 
-}
-
 // The number of desktops.
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
@@ -51,7 +46,7 @@ char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
 
 #define DESKTOP(key, num) \
 	{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
-	{ ControlMask|ShiftMask,key, clienttodesktop, {.i = num}}
+	{ Mod1Mask|ShiftMask,key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
 	{ 0,                    XK_i,      focusold,       {NULL}},
@@ -67,7 +62,6 @@ static struct Key mainmap[] = {
 	{ 0,                    XK_b,      spawn,          {.com = batterycmd}},
 
 	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
-	{ ControlMask,          XK_g,      exitsubmap,     {NULL}},
 	{ ControlMask,          XK_bracketleft,exitsubmap,     {NULL}},
 	
 	{},
@@ -76,10 +70,10 @@ static struct Key mainmap[] = {
 static struct Key keys[] = {
 	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
 
-	{ ShiftMask|ControlMask,XK_Return,      spawn,          {.com = termcmd}}, 
-	{ ShiftMask|ControlMask,XK_slash,       spawn,          {.com = menucmd}}, 
+	{ Mod1Mask|ShiftMask,   XK_Return,      spawn,          {.com = termcmd}}, 
+	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
 
-	{ ShiftMask|ControlMask,XK_x,           killclient,     {NULL}},
+	{ Mod1Mask|ShiftMask,   XK_x,           killclient,     {NULL}},
 
 	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
 
@@ -104,6 +98,7 @@ static struct Key keys[] = {
 
 static struct Button buttons[] = {
 	{ Mod1Mask,         Button1,    mousemove,      {NULL}},
+	{ Mod1Mask,         Button2,    mouseresize,    {NULL}},
 	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
 	{}
 };
