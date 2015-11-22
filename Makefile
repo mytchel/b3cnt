@@ -1,17 +1,19 @@
-PREFIX?=/usr
+PREFIX?=/usr/local
 
 CC?=cc
+CFLAGS=-I/usr/X11R6/include
+LDFLAGS=-L/usr/X11R6/lib -lX11 -lXinerama
 
-b3cnt-floating: b3cnt.c config.h
-	${CC} -Wall -o $@ $< -lX11 -lXinerama
+b3cnt: b3cnt.c config.h
+	${CC} -Wall -o $@ $< ${CFLAGS} ${LDFLAGS}
 
 install: b3cnt-floating
-	install -Dm 755 b3cnt-floating ${DESTDIR}${PREFIX}/bin/b3cnt-floating
+	install -Dm 755 b3cnt ${DESTDIR}${PREFIX}/bin/b3cnt
 
 uninstall: 
-	rm ${DESTDIR}${PREFIX}/bin/b3cnt-floating
+	rm ${DESTDIR}${PREFIX}/bin/b3cnt
 
 clean:
-	rm -f b3cnt-floating
+	rm -f b3cnt
 
 .PHONY: install uninstall clean
