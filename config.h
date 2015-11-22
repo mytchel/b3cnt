@@ -24,64 +24,50 @@
 // The number of desktops.
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
-#define FOCUS		"#333333"
-#define UNFOCUS		"#aaaaaa"
+#define FOCUS           "#222222"
+#define UNFOCUS         "#666666"
 
 // Min window width/height
 #define MIN		100
 
-char *termcmd[]		= {"st", NULL};
+char *termcmd[]	      = {"st", "-e", "tmux", NULL};
+
+char *lockcmd[]       = {"lock", NULL};
 
 /* scripts from nenu */
-char *menucmd[]		= {"nexec", NULL};
-char *wincmd[]		= {"nwindow", NULL};
-char *batterycmd[]	= {"nbatt", NULL};
-char *timecmd[]		= {"ntime", NULL};
-
-char *lightin[]		= {"xbacklight", "-inc", "10", NULL};
-char *lightde[]		= {"xbacklight", "-dec", "10", NULL};
-char *mute[]		= {"amixer", "set", "Master", "toggle", NULL};
-char *volup[]		= {"amixer", "set", "Master", "5%+", NULL};
-char *voldown[]		= {"amixer", "set", "Master", "5%-", NULL};
+char *menucmd[]       = {"nexec", NULL};
+char *wincmd[]        = {"nwindow", NULL};
+char *batterycmd[]    = {"nbatt", NULL};
+char *timecmd[]       = {"ntime", NULL};
 
 #define DESKTOP(key, num) \
 	{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
 	{ Mod1Mask|ShiftMask,key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
-	{ 0,                    XK_i,      focusold,       {NULL}},
+	{ 0,                             XK_i,      focusold,       {NULL}},
+	{ 0,                             XK_equal,  fullheight,     {NULL}},
+	{ ShiftMask,              XK_equal,  fullwidth,      {NULL}},
+	{ 0,                             XK_f,      fullscreen,     {NULL}},
+	{ ShiftMask,              XK_b,      toggleborder,   {NULL}},
 
-	{ 0,                    XK_p,      sendtoback,     {NULL}},
-	
-	{ 0,                    XK_equal,  fullheight,     {NULL}},
-	{ ShiftMask,            XK_equal,  fullwidth,      {NULL}},
-	{ 0,                    XK_f,      fullscreen,     {NULL}},
-	{ ShiftMask,            XK_b,      toggleborder,   {NULL}},
+	{ 0,                             XK_t,      spawn,          {.com = timecmd}},
+	{ 0,                             XK_b,      spawn,          {.com = batterycmd}},
 
-	{ 0,                    XK_t,      spawn,          {.com = timecmd}},
-	{ 0,                    XK_b,      spawn,          {.com = batterycmd}},
-
-	{ 0,                    XK_Escape, exitsubmap,	   {NULL}},
+	{ 0,                              XK_Escape, exitsubmap,	   {NULL}},
 	{ ControlMask,          XK_bracketleft,exitsubmap,     {NULL}},
 	
 	{},
 };
 
 static struct Key keys[] = {
-	{ Mod1Mask,             XK_p,           submap,         {.map = mainmap, .i = 0}},
+	{ Mod1Mask,                         XK_p,              submap,       {.map = mainmap, .i = 0}},
+	{ Mod1Mask|ControlMask,  XK_Return,    spawn,          {.com = termcmd}}, 
+	{ Mod1Mask|ShiftMask,       XK_slash,       spawn,          {.com = menucmd}}, 
+	{ Mod1Mask|ControlMask,  XK_x,             killclient,       {NULL}},
+	{ Mod1Mask,                         XK_space,     spawn,          {.com = wincmd}},
+	{ Mod1Mask|ControlMask,  XK_Delete,    spawn,          {.com = lockcmd}},
 
-	{ Mod1Mask|ShiftMask,   XK_Return,      spawn,          {.com = termcmd}}, 
-	{ Mod1Mask|ShiftMask,   XK_slash,       spawn,          {.com = menucmd}}, 
-
-	{ Mod1Mask|ShiftMask,   XK_x,           killclient,     {NULL}},
-
-	{ Mod1Mask,             XK_space,       spawn,          {.com = wincmd}},
-
-	{ Mod1Mask,             XK_F1,          spawn,          {.com = mute}},
-	{ Mod1Mask,             XK_F2,          spawn,          {.com = voldown}},
-	{ Mod1Mask,             XK_F3,          spawn,          {.com = volup}},
-	{ Mod1Mask,             XK_F5,          spawn,          {.com = lightde}},
-	{ Mod1Mask,             XK_F6,          spawn,          {.com = lightin}},
 
 	DESKTOP(XK_1, 0),
 	DESKTOP(XK_2, 1),
@@ -97,9 +83,9 @@ static struct Key keys[] = {
 };
 
 static struct Button buttons[] = {
-	{ Mod1Mask,         Button1,    mousemove,      {NULL}},
+	{ Mod1Mask,         Button1,    mousemove,     {NULL}},
 	{ Mod1Mask,         Button2,    mouseresize,    {NULL}},
-	{ Mod1Mask,         Button3,    mouseresize,    {NULL}},
+	{ Mod1Mask,         Button3,    sendtoback,      {NULL}},
 	{}
 };
 

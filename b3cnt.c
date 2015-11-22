@@ -43,8 +43,6 @@
 #define SUBMASK    EnterWindowMask 
 
 enum { RESIZE, MOVE };
-enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
-enum { NET_SUPPORTED, NET_FULLSCREEN, NET_WM_STATE, NET_ACTIVE, NET_COUNT };
 
 typedef struct Arg Arg;
 typedef struct Key Key;
@@ -94,12 +92,16 @@ static void fullscreen(Client *c, Desktop *d, Arg arg);
 static void toggleborder(Client *c, Desktop *d, Arg arg);
 static void mousemove(Client *c, Desktop *d, Arg arg);
 static void mouseresize(Client *c, Desktop *d, Arg arg);
+
 /* Listens for keys in a submap. arg.map is the map. Stays in map until exited
  * if arg.i is non zero.
  */
+
 static void submap(Client *c, Desktop *d, Arg arg);
+
 /* Special function to exit submaps. Does nothing else. */
 static void exitsubmap(Client *c, Desktop *d, Arg arg);
+
 static void spawn(Client *c, Desktop *d, Arg arg);
 static void killclient(Client *c, Desktop *d, Arg arg);
 static void quit();
@@ -111,9 +113,12 @@ static void die(char* e);
 static unsigned long getcolor(char *color, int screen);
 static void sendkillsignal(Window w);
 static void sigchld(int unused);
+
 static void monitorholdingclient(Client *c, int *mx, int *my, 
 		int *mw, int *mh);
+
 static int wintoclient(Window w, Client **c, Desktop **d);
+
 static void updatefocus(Desktop *d);
 static void addwindow(Window w, Desktop *d);
 /* adds c after a on Desktop d. if a is null then sets c to be head. */
@@ -123,10 +128,12 @@ static void removewindow(Window w);
 static Client *lastclient(Desktop *d);
 static void updateclientdata(Client *c);
 static void updateclientwin(Client *c);
+
 static void mousemotion(int t);
 static void grabkeys();
 static int keypressed(XKeyEvent ke, Key *map);
 static int iskeymod(KeySym keysym);
+
 static void destroynotify(XEvent *e);
 static void maprequest(XEvent *e);
 static void unmapnotify(XEvent *e);
@@ -134,6 +141,7 @@ static void keypress(XEvent *e);
 static void buttonpress(XEvent *e);
 static void configurerequest(XEvent *e);
 static void clientmessage(XEvent *e);
+
 static int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee);
 
 static Display *dis;
@@ -143,17 +151,20 @@ static unsigned int win_unfocus, win_focus;
 static Desktop desktops[DESKTOP_NUM];
 static int current;
 
+enum { WM_PROTOCOLS, WM_DELETE_WINDOW, WM_COUNT };
+enum { NET_SUPPORTED, NET_WM_STATE, NET_FULLSCREEN, NET_ACTIVE, NET_COUNT };
+
 static Atom wmatoms[WM_COUNT], netatoms[NET_COUNT];
 static int modifiers[] = {0, LockMask, 0, LockMask };
 	
 static void (*events[LASTEvent])(XEvent *e) = {
-	[MapRequest]         = maprequest,
-	[UnmapNotify]        = unmapnotify,
-	[DestroyNotify]      = destroynotify,
-	[ConfigureRequest]   = configurerequest,
-	[KeyPress]           = keypress,
-	[ButtonPress]        = buttonpress,
-	[ClientMessage]      = clientmessage,
+	[MapRequest]            = maprequest,
+	[UnmapNotify]           = unmapnotify,
+	[DestroyNotify]         = destroynotify,
+	[ConfigureRequest]      = configurerequest,
+	[KeyPress]              = keypress,
+	[ButtonPress]           = buttonpress,
+	[ClientMessage]         = clientmessage,
 };
 
 void setup() {
@@ -183,8 +194,13 @@ void setup() {
 	    = XInternAtom(dis, "WM_PROTOCOLS", False);
 	wmatoms[WM_DELETE_WINDOW] 
 	    = XInternAtom(dis, "WM_DELETE_WINDOW", False);
+	
 	netatoms[NET_SUPPORTED]
 	    = XInternAtom(dis, "_NET_SUPPORTED", False);
+	netatoms[NET_WM_STATE]
+	    = XInternAtom(dis, "_NET_WM_STATE", False);
+	netatoms[NET_FULLSCREEN]
+	    = XInternAtom(dis, "_NET_WM_STATE_FULLSCREEN", False);
 	netatoms[NET_ACTIVE]
 	    = XInternAtom(dis, "_NET_ACTIVE_WINDOW", False);
 
@@ -200,16 +216,7 @@ void setup() {
 }
 
 void quit() {
-	Client *c; int i;
-
-	fprintf(stdout, "b3cnt: FINALLY. They've left,"
-			"now I can have some piece and quiet.\n");
 	bool_quit = 1;
-
-	fprintf(stdout, "b3cnt: Killing all their windows.\n");
-	for (i = 0; i < DESKTOP_NUM; i++)
-		for (c = desktops[i].head; c; c = c->next)
-			sendkillsignal(c->win);
 }
 
 void killclient(Client *c, Desktop *d, Arg arg) {
@@ -279,12 +286,6 @@ void toggleborder(Client *c, Desktop *d, Arg arg) {
 	if (!c) return;
 
 	c->b = !c->b;
-	c->w += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
-	c->h += BORDER_WIDTH * 2 * (c->b ? -1 : 1);
-
-	XSetWindowBorderWidth(dis, c->win,
-	         c->b ? BORDER_WIDTH : 0);
-
 	updateclientwin(c);
 }
 
@@ -408,11 +409,24 @@ void updateclientdata(Client *c) {
 }
 
 void updateclientwin(Client *c) {
-	int x, y, w, h;
-	int b = c->b ? BORDER_WIDTH * 2 : 0;
-	monitorholdingclient(c, &x, &y, &w, &h);
-	w -= b;
-	h -= b;
+	int x, y, w, h, b;
+	
+	if (c->full_width && c->full_height) {
+    	XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+	        PropModeReplace, (unsigned char*) &netatoms[NET_FULLSCREEN], 1);
+	    b = 0;
+	} else {
+    	XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+	        PropModeReplace, 0, 0);
+	    b = c->b ? BORDER_WIDTH : 0;
+	}
+	
+	XSetWindowBorderWidth(dis, c->win, b);
+
+    monitorholdingclient(c, &x, &y, &w, &h);
+	w -= b * 2;
+	h -= b * 2;
+	
 	if (!c->full_height) { y = c->y; h = c->h;}
 	if (!c->full_width) { x = c->x; w = c->w;}
 	
@@ -628,9 +642,14 @@ void maprequest(XEvent *e) {
 	XMapRequestEvent *ev = &e->xmaprequest;
 	Client *c; Desktop *d;
 
+	XMapWindow(dis, ev->window);
 	if (!wintoclient(ev->window, &c, &d)) {
-		XMapWindow(dis, ev->window);
 		addwindow(ev->window, &desktops[current]);
+	} else if (d != &desktops[current]) {
+		int i;
+		for (i = 0; d != &desktops[i]; i++);
+		struct Arg arg = { .i = i };
+		changedesktop(NULL, &desktops[current], arg);
 	}
 }
 
@@ -701,8 +720,16 @@ void clientmessage(XEvent *e) {
 	Client *c; Desktop *d;
 	if (!wintoclient(e->xclient.window, &c, &d))
 		return;
+		
+	printf("clientmessage\n");
 	
-	if (e->xclient.message_type == netatoms[NET_ACTIVE]) {
+	if (e->xclient.message_type == netatoms[NET_WM_STATE]) {
+	    if (e->xclient.data.l[1] == netatoms[NET_FULLSCREEN] ||
+	        e->xclient.data.l[2] == netatoms[NET_FULLSCREEN]) {
+	        printf("fulllscreen message\n");
+	        fullscreen(c, d, (Arg) {.i = 0});        
+	    }
+	} else if (e->xclient.message_type == netatoms[NET_ACTIVE]) {
 		printf("window wants to be active\n");
 		if (d == &desktops[current]) {
 			printf("is in the current desktop\n");
