@@ -73,7 +73,7 @@ struct Button {
 struct Client {
 	Client *next, *prev;
 	int x, y, w, h;
-	int b, full_height, full_width;
+	int full_height, full_width;
 	Window win;
 };
 
@@ -89,7 +89,6 @@ static void sendtoback(Client *c, Desktop *d, Arg arg);
 static void fullwidth(Client *c, Desktop *d, Arg arg);
 static void fullheight(Client *c, Desktop *d, Arg arg);
 static void fullscreen(Client *c, Desktop *d, Arg arg);
-static void toggleborder(Client *c, Desktop *d, Arg arg);
 static void mousemove(Client *c, Desktop *d, Arg arg);
 static void mouseresize(Client *c, Desktop *d, Arg arg);
 
@@ -115,7 +114,7 @@ static void sendkillsignal(Window w);
 static void sigchld(int unused);
 
 static void monitorholdingclient(Client *c, int *mx, int *my, 
-		int *mw, int *mh);
+	int *mw, int *mh);
 
 static int wintoclient(Window w, Client **c, Desktop **d);
 
@@ -282,13 +281,6 @@ void fullscreen(Client *c, Desktop *d, Arg arg) {
 	updateclientwin(c);
 }
 
-void toggleborder(Client *c, Desktop *d, Arg arg) {
-	if (!c) return;
-
-	c->b = !c->b;
-	updateclientwin(c);
-}
-
 void focusold(Client *c, Desktop *d, Arg arg) {
 	if (c && c->prev) {
 		removeclient(c, d);
@@ -316,7 +308,8 @@ void mouseresize(Client *c, Desktop *d, Arg arg) {
 }
 
 void mousemotion(int t) {
-	int rx, ry, xw, yh, bw, dc;
+	int rx, ry, xw, yh, dc;
+	int mx, my, mw, mh;
 	unsigned int v;
 	Window w, wr;
 	XWindowAttributes wa;
@@ -340,22 +333,39 @@ void mousemotion(int t) {
 		GrabModeAsync, GrabModeAsync, None, None, CurrentTime)
 			 != GrabSuccess) return;
 
-	c->full_width = c->full_height = False;
-	bw = c->b ? BORDER_WIDTH * 2 : 0;
+	monitorholdingclient(c, &mx, &my, &mw, &mh);
+	if (c->full_width) {
+		c->full_width = False;
+		c->x = mx - BORDER_WIDTH;
+		c->w = mw;
+	}
+	if (c->full_height) {
+		c->full_height = False;
+		c->y = my - BORDER_WIDTH;
+		c->h = mh;
+	}
 
+	updateclientwin(c);
+	
 	do {
 		XMaskEvent(dis, ButtonPressMask|ButtonReleaseMask
 			|PointerMotionMask|SubstructureRedirectMask, &ev);
+
 		if (ev.type == MotionNotify) {
-			xw = (t == MOVE ? wa.x : wa.width - bw) 
+			xw = (t == MOVE ? wa.x : wa.width - BORDER_WIDTH * 2) 
 				+ ev.xmotion.x - rx;
-			yh = (t == MOVE ? wa.y : wa.height - bw) 
+
+			yh = (t == MOVE ? wa.y : wa.height - BORDER_WIDTH * 2)
 				+ ev.xmotion.y - ry;
-			if (t == RESIZE) 
+
+			if (t == RESIZE) {
 				XResizeWindow(dis, c->win, 
 						xw > MIN ? xw : MIN,
 						yh > MIN ? yh : MIN);
-			else if (t == MOVE) XMoveWindow(dis, c->win, xw, yh);
+			} else if (t == MOVE) {
+				XMoveWindow(dis, c->win, xw, yh);
+			}
+
 		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
 			events[ev.type](&ev);
 	} while (ev.type != ButtonRelease);
@@ -409,24 +419,20 @@ void updateclientdata(Client *c) {
 }
 
 void updateclientwin(Client *c) {
-	int x, y, w, h, b;
+	int x, y, w, h;
 	
 	if (c->full_width && c->full_height) {
-    	XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
-	        PropModeReplace, (unsigned char*) &netatoms[NET_FULLSCREEN], 1);
-	    b = 0;
+		XSetWindowBorderWidth(dis, c->win, 0);
+    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+	        	PropModeReplace, (unsigned char*) &netatoms[NET_FULLSCREEN], 1);
 	} else {
-    	XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
-	        PropModeReplace, 0, 0);
-	    b = c->b ? BORDER_WIDTH : 0;
+		XSetWindowBorderWidth(dis, c->win, BORDER_WIDTH);
+    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+		        PropModeReplace, 0, 0);
 	}
 	
-	XSetWindowBorderWidth(dis, c->win, b);
+	monitorholdingclient(c, &x, &y, &w, &h);
 
-    monitorholdingclient(c, &x, &y, &w, &h);
-	w -= b * 2;
-	h -= b * 2;
-	
 	if (!c->full_height) { y = c->y; h = c->h;}
 	if (!c->full_width) { x = c->x; w = c->w;}
 	
@@ -485,7 +491,6 @@ void addwindow(Window w, Desktop *d) {
 				GrabModeAsync, GrabModeAsync, None, None);
 
 	c->win = w;
-	c->b = True;
 	c->full_width = False;
 	c->full_height = False;
 	updateclientdata(c);

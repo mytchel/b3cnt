@@ -24,8 +24,8 @@
 // The number of desktops.
 #define DESKTOP_NUM	9
 #define BORDER_WIDTH	2
-#define FOCUS           "#222222"
-#define UNFOCUS         "#666666"
+#define FOCUS           "#666666"
+#define UNFOCUS         "#cccccc"
 
 // Min window width/height
 #define MIN		100
@@ -39,34 +39,36 @@ char *menucmd[]       = {"nexec", NULL};
 char *wincmd[]        = {"nwindow", NULL};
 char *batterycmd[]    = {"nbatt", NULL};
 char *timecmd[]       = {"ntime", NULL};
+char *dockcmd[]       = {"dock", NULL};
 
 #define DESKTOP(key, num) \
 	{ Mod1Mask|ControlMask, key, changedesktop, {.i = num}}, \
 	{ Mod1Mask|ShiftMask,key, clienttodesktop, {.i = num}}
 
 static struct Key mainmap[] = {
-	{ 0,                             XK_i,      focusold,       {NULL}},
-	{ 0,                             XK_equal,  fullheight,     {NULL}},
+	{ 0,                      XK_i,      focusold,       {NULL}},
+	{ 0,                      XK_equal,  fullheight,     {NULL}},
 	{ ShiftMask,              XK_equal,  fullwidth,      {NULL}},
-	{ 0,                             XK_f,      fullscreen,     {NULL}},
-	{ ShiftMask,              XK_b,      toggleborder,   {NULL}},
+	{ 0,                      XK_f,      fullscreen,     {NULL}},
 
-	{ 0,                             XK_t,      spawn,          {.com = timecmd}},
-	{ 0,                             XK_b,      spawn,          {.com = batterycmd}},
+	{ 0,                      XK_t,      spawn,          {.com = timecmd}},
+	{ 0,                      XK_b,      spawn,          {.com = batterycmd}},
 
-	{ 0,                              XK_Escape, exitsubmap,	   {NULL}},
-	{ ControlMask,          XK_bracketleft,exitsubmap,     {NULL}},
+	{ 0,                      XK_Escape,exitsubmap,      {NULL}},
+	{ ControlMask,            XK_bracketleft,exitsubmap, {NULL}},
 	
 	{},
 };
 
 static struct Key keys[] = {
-	{ Mod1Mask,                         XK_p,              submap,       {.map = mainmap, .i = 0}},
-	{ Mod1Mask|ControlMask,  XK_Return,    spawn,          {.com = termcmd}}, 
-	{ Mod1Mask|ShiftMask,       XK_slash,       spawn,          {.com = menucmd}}, 
-	{ Mod1Mask|ControlMask,  XK_x,             killclient,       {NULL}},
-	{ Mod1Mask,                         XK_space,     spawn,          {.com = wincmd}},
-	{ Mod1Mask|ControlMask,  XK_Delete,    spawn,          {.com = lockcmd}},
+	{ Mod1Mask,              XK_p,         submap,       {.map = mainmap, .i = 0}},
+	{ Mod1Mask|ControlMask,  XK_Return,    spawn,        {.com = termcmd}}, 
+	{ Mod1Mask|ShiftMask,    XK_slash,     spawn,        {.com = menucmd}}, 
+	{ Mod1Mask|ControlMask,  XK_x,         killclient,   {NULL}},
+	{ Mod1Mask,              XK_space,     spawn,        {.com = wincmd}},
+	{ Mod1Mask|ControlMask,  XK_Delete,    spawn,        {.com = lockcmd}},
+	
+	{ Mod1Mask|ControlMask,  XK_d,         spawn,        {.com = dockcmd}},
 
 
 	DESKTOP(XK_1, 0),
@@ -77,7 +79,7 @@ static struct Key keys[] = {
 	DESKTOP(XK_6, 5),
 	DESKTOP(XK_7, 6),
 
-	{ Mod1Mask|ControlMask|ShiftMask,XK_q,   quit,          {NULL}},
+	{ Mod1Mask|ControlMask|ShiftMask,XK_q,quit,         {NULL}},
 	
 	{}
 };
