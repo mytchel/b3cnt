@@ -423,13 +423,13 @@ void updateclientwin(Client *c) {
 	
 	if (c->full_width && c->full_height) {
 		XSetWindowBorderWidth(dis, c->win, 0);
-    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+/*    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
 	        	PropModeReplace, (unsigned char*) &netatoms[NET_FULLSCREEN], 1);
-	} else {
+*/	} else {
 		XSetWindowBorderWidth(dis, c->win, BORDER_WIDTH);
-    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
+/*    		XChangeProperty(dis, c->win, netatoms[NET_WM_STATE], XA_ATOM, 32,
 		        PropModeReplace, 0, 0);
-	}
+*/	}
 	
 	monitorholdingclient(c, &x, &y, &w, &h);
 
