@@ -119,6 +119,7 @@ static void monitorholdingclient(Client *c, int *mx, int *my,
 static int wintoclient(Window w, Client **c, Desktop **d);
 
 static void updatefocus(Desktop *d);
+
 static void addwindow(Window w, Desktop *d);
 /* adds c after a on Desktop d. if a is null then sets c to be head. */
 static void addclient(Client *c, Client *a, Desktop *d);
@@ -133,6 +134,8 @@ static void grabkeys();
 static int keypressed(XKeyEvent ke, Key *map);
 static int iskeymod(KeySym keysym);
 
+static void handleevent(XEvent *e);
+
 static void destroynotify(XEvent *e);
 static void maprequest(XEvent *e);
 static void unmapnotify(XEvent *e);
@@ -140,6 +143,7 @@ static void keypress(XEvent *e);
 static void buttonpress(XEvent *e);
 static void configurerequest(XEvent *e);
 static void clientmessage(XEvent *e);
+static void screenchangenotify(XEvent *e);
 
 static int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee);
 
@@ -156,16 +160,8 @@ enum { NET_SUPPORTED, NET_WM_STATE, NET_FULLSCREEN, NET_ACTIVE, NET_COUNT };
 static Atom wmatoms[WM_COUNT], netatoms[NET_COUNT];
 static int modifiers[] = {0, LockMask, 0, LockMask };
 	
-static void (*events[LASTEvent])(XEvent *e) = {
-	[MapRequest]            = maprequest,
-	[UnmapNotify]           = unmapnotify,
-	[DestroyNotify]         = destroynotify,
-	[ConfigureRequest]      = configurerequest,
-	[KeyPress]              = keypress,
-	[ButtonPress]           = buttonpress,
-	[ClientMessage]         = clientmessage,
-};
-
+static int have_rr, rr_event_base, rr_error_base;
+	
 void setup() {
 	int k, j;
 	sigchld(0);
@@ -208,6 +204,11 @@ void setup() {
 
 	XSelectInput(dis, root, ROOTMASK);
 	XSetErrorHandler(xerror);
+	
+	have_rr = XRRQueryExtension(dis, &rr_event_base, &rr_error_base);
+	if (have_rr) {
+		XRRSelectInput(dis, root, RRScreenChangeNotifyMask);
+	}
 
 	grabkeys();
 
@@ -367,7 +368,8 @@ void mousemotion(int t) {
 			}
 
 		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
-			events[ev.type](&ev);
+			handleevent(&ev);
+
 	} while (ev.type != ButtonRelease);
 
 	XUngrabPointer(dis, CurrentTime);
@@ -637,7 +639,7 @@ void submap(Client *c, Desktop *d, Arg arg) {
 			if (!keypressed(ev.xkey, map) || !arg.i)
 				break;
 		} else if (ev.type == ConfigureRequest || ev.type == MapRequest)
-			events[ev.type](&ev);
+			handleevent(&ev);
 	}
 
 	XUngrabKeyboard(dis, CurrentTime);
@@ -745,6 +747,11 @@ void clientmessage(XEvent *e) {
 	}
 }
 
+void screenchangenotify(XEvent *e) {
+	XRRScreenChangeNotifyEvent *ev = (XRRScreenChangeNotifyEvent *) e;
+	printf("screenchangenotify\n");
+}
+
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
 	fprintf(stderr, "b3cnt caught error: request %d code %d\n",
 		ee->request_code, ee->error_code);
@@ -780,6 +787,40 @@ void sigchld(int unused) {
 	while(0 < waitpid(-1, NULL, WNOHANG));
 }
 
+void handleevent(XEvent *ev) {
+	switch (ev->type) {
+	case MapRequest:
+		maprequest(ev);
+		break;
+	case UnmapNotify:
+		unmapnotify(ev);
+		break;
+	case DestroyNotify:
+		destroynotify(ev);
+		break;
+	case ConfigureRequest:
+		configurerequest(ev);
+		break;
+	case KeyPress:
+		keypress(ev);
+		break;
+	case ButtonPress:
+		buttonpress(ev);
+		break;
+	case ClientMessage:
+		clientmessage(ev);
+		break;
+	default:
+		if (have_rr) {
+			if (ev->type == rr_event_base + RRScreenChangeNotify) {
+				screenchangenotify(ev);
+				break;
+			}
+		}
+		break;
+	}
+}
+
 int main(int argc, char **argv) {
 	XEvent ev; 
 
@@ -789,8 +830,7 @@ int main(int argc, char **argv) {
 	setup();
 
 	while (!bool_quit && !XNextEvent(dis, &ev))
-		if(events[ev.type])
-			events[ev.type](&ev);
+		handleevent(&ev);
 
 	XCloseDisplay(dis);
 
