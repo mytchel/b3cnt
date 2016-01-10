@@ -446,14 +446,17 @@ void monitorholdingclient(Client *c, int *mx, int *my, int *mw, int *mh) {
 	int count, i;
 	int cx = c->x + c->w / 2;
 	int cy = c->y + c->h / 2;
-	*mx = *my = 0;
-	*mw = XDisplayWidth(dis, screen);
-	*mh = XDisplayHeight(dis, screen);
+	
 	if (XineramaIsActive(dis)) {
-		if (!(info = XineramaQueryScreens(dis, &count)))
+		if (!(info = XineramaQueryScreens(dis, &count))) {
+			*mx = *my = 0;
+			*mw = XDisplayWidth(dis, screen);
+			*mh = XDisplayHeight(dis, screen);
 			return;
-		if (count < 1) 
-			goto clean;
+		}
+
+		if (count < 1)
+			die("Error no screens.");
 
 		for (i = 0; i < count; i++) {
 			*mx = info[i].x_org;
@@ -466,7 +469,10 @@ void monitorholdingclient(Client *c, int *mx, int *my, int *mw, int *mh) {
 		}
 	}
 
-	clean:
+	*mx = *my = 0;
+	*mw = *mh = -1;
+
+clean:
 	XFree(info);	
 }
 
@@ -672,8 +678,6 @@ void configurerequest(XEvent *e) {
 	Client *c; Desktop *d;
 	XConfigureRequestEvent *ev = &e->xconfigurerequest;
 	
-	printf("configurerequest\n");
-	
 	XMoveResizeWindow(dis, ev->window, ev->x, ev->y,
 			ev->width, ev->height);
 
@@ -728,18 +732,13 @@ void clientmessage(XEvent *e) {
 	if (!wintoclient(e->xclient.window, &c, &d))
 		return;
 		
-	printf("clientmessage\n");
-	
 	if (e->xclient.message_type == netatoms[NET_WM_STATE]) {
 	    if (e->xclient.data.l[1] == netatoms[NET_FULLSCREEN] ||
 	        e->xclient.data.l[2] == netatoms[NET_FULLSCREEN]) {
-	        printf("fulllscreen message\n");
 	        fullscreen(c, d, (Arg) {.i = 0});        
 	    }
 	} else if (e->xclient.message_type == netatoms[NET_ACTIVE]) {
-		printf("window wants to be active\n");
 		if (d == &desktops[current]) {
-			printf("is in the current desktop\n");
 			removeclient(c, d);
 			addclient(c, lastclient(d), d);
 			updatefocus(d);
@@ -748,8 +747,25 @@ void clientmessage(XEvent *e) {
 }
 
 void screenchangenotify(XEvent *e) {
+	int i, mx, my, mw, mh;
+	Client *c;
 	XRRScreenChangeNotifyEvent *ev = (XRRScreenChangeNotifyEvent *) e;
-	printf("screenchangenotify\n");
+	printf("screenchangenotify %i %i %i %i\n", ev->width, ev->height, ev->mwidth, ev->mheight);
+	fflush(stdout);
+
+
+	for (i = 0; i < DESKTOP_NUM; i++) {
+		for (c = desktops[i].head; c; c = c->next) {
+			monitorholdingclient(c, &mx, &my, &mw, &mh);
+			if (mw == -1 && mh == -1) {
+				printf("client not in a monitor, moving\n");
+				fflush(stdout);
+				c->x = 0;
+				c->y = 0;
+				updateclientwin(c);
+			}
+		}
+	}
 }
 
 int xerror(__attribute((unused)) Display *dis, XErrorEvent *ee) {
